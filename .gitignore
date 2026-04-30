@@ -12,3 +12,5 @@ docs/api
 docs/sg_execution_times.rst
 
 case/*
+
+*.png
