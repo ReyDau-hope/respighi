@@ -19,7 +19,7 @@ YMIN = 350_000.0
 YMAX = 370_000.0
 
 #Define parameters
-N_PIEZOMETERS = 100
+N_PIEZOMETERS = 200
 TRANSMISSIVITY = 1000.00
 RECHARGE = 0.0001
 REG_WEIGHT = 10
@@ -151,7 +151,9 @@ ax.scatter(x, y, color="k", alpha=0.5)
 
 grid = xu.Ugrid2d.from_structured(finalhead)
 headvalues = finalhead.sel(x=xr.DataArray(x), y=xr.DataArray(y), method="nearest").to_numpy()
-target = rsp.CellSampling(x, y, headvalues, grid)
+noise = np.random.normal(loc=0, scale=0.1, size=headvalues.shape) #Generating random noise
+headvalues_noisy = headvalues + noise #Adding random noise to measurements
+target = rsp.CellSampling(x, y, headvalues_noisy, grid)
 
 # %%
 # Inverse Problem
@@ -208,75 +210,37 @@ print("end of run")
 
 #Determining layer thickness and transmissivity
 
-thickness = subsoil.top - subsoil.bottom
-kD_per_layer = subsoil.kh * thickness
-kD_total = kD_per_layer.sum(dim="layer")
+# thickness = subsoil.top - subsoil.bottom
+# kD_per_layer = subsoil.kh * thickness
+# kD_total = kD_per_layer.sum(dim="layer")
 
 # %%
 
 #For loop kD values
 
-kD_values = np.linspace(140, 8800, 50)
-errors = []
+# kD_values = np.linspace(140, 8800, 50)
+# errors = []
 
-for kD in kD_values:
-    transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), kD)
-    recharge = rsp.Recharge(
-        rate=xr.full_like(transmissivity, RECHARGE).to_numpy(),
-    )
-    gwf = rsp.GroundwaterModel(
-        area=100.0 * 100.0,
-        initial=finalhead.to_numpy(),
-        recharge=recharge,
-        head_boundaries=[river, large_river, drain, tiledrain, overlandflow],
-        transmissivity=transmissivity.to_numpy(),
-        xclose=1e-6,
-        maxiter=50,
-    )
-    gwf.formulate()
-    gwf.nonlinear_solve()
-    inverse = rsp.InverseProblem(
-        groundwatermodel=gwf,
-        target=target,
-        regularization_weight=REG_WEIGHT,
-        maxiter=100,
-        relax=0.0,
-    )
-    inverse.formulate()
-    inverse.nonlinear_solve()
-    inversehead = finalhead.copy(data=inverse.head.reshape(finalhead.shape))
-    error = inversehead - finalhead
-    errors.append(abs(error).mean().values)
-
-plt.figure()
-plt.plot(kD_values, errors)
-plt.xlabel("kD (m²/day)")
-plt.ylabel("Mean absolute error (m)")
-plt.title("Error vs Transmissivity")
-plt.show()
-
-# # %%
-
-# #Extract smallest error with corresponding kD value:
-
-# min_error_index = np.argmin(errors)
-# min_kD = kD_values[min_error_index]
-# min_error = errors[min_error_index]
-# print(f"Optimal kD: {min_kD:.2f} m²/day, with mean error: {min_error:.4f} m")
-
-
-# %%
-
-#For loop reg_weight
-
-# reg_values = np.logspace(-1, 3, 50) #0.1 to 1000 on a log scale
-# errors_reg = []
-
-# for reg in reg_values:
+# for kD in kD_values:
+#     transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), kD)
+#     recharge = rsp.Recharge(
+#         rate=xr.full_like(transmissivity, RECHARGE).to_numpy(),
+#     )
+#     gwf = rsp.GroundwaterModel(
+#         area=100.0 * 100.0,
+#         initial=finalhead.to_numpy(),
+#         recharge=recharge,
+#         head_boundaries=[river, large_river, drain, tiledrain, overlandflow],
+#         transmissivity=transmissivity.to_numpy(),
+#         xclose=1e-6,
+#         maxiter=50,
+#     )
+#     gwf.formulate()
+#     gwf.nonlinear_solve()
 #     inverse = rsp.InverseProblem(
 #         groundwatermodel=gwf,
 #         target=target,
-#         regularization_weight=reg,
+#         regularization_weight=REG_WEIGHT,
 #         maxiter=100,
 #         relax=0.0,
 #     )
@@ -284,20 +248,76 @@ plt.show()
 #     inverse.nonlinear_solve()
 #     inversehead = finalhead.copy(data=inverse.head.reshape(finalhead.shape))
 #     error = inversehead - finalhead
-#     errors_reg.append(abs(error).mean().values)
+#     errors.append(abs(error).mean().values)
 
 # plt.figure()
-# plt.plot(reg_values, errors_reg)
-# plt.xscale("log")
-# plt.xlabel("Regularization weight")
+# plt.plot(kD_values, errors)
+# plt.xlabel("kD (m²/day)")
 # plt.ylabel("Mean absolute error (m)")
-# plt.title("Error vs Regularization Weight")
+# plt.title("Error vs Transmissivity")
 # plt.show()
+
+# # %%
+
+# #Extract smallest error with corresponding kD value:
+# %%
+
+# min_error_index = np.argmin(errors)
+# min_kD = kD_values[min_error_index]
+# min_error = errors[min_error_index]
+# print(f"Optimal kD: {min_kD:.2f} m²/day, with mean error: {min_error:.4f} m")
+
+# sorted_indices_kD = np.argsort(errors)
+# top5_indices_kD = sorted_indices_kD[:5]
+# top5_kD = kD_values[top5_indices_kD]
+# top5_errors_kD = np.array(errors)[top5_indices_kD]
+
+# for i in range(5):
+#     print(f"Rank {i+1}: kD = {top5_kD[i]:.2f}, error = {top5_errors_kD[i]:.4f} m")
+
+# %%
+
+#For loop reg_weight
+
+reg_values = np.logspace(-1, 6, 50)
+errors_reg = []
+
+for reg in reg_values:
+    inverse = rsp.InverseProblem(
+        groundwatermodel=gwf,
+        target=target,
+        regularization_weight=reg,
+        maxiter=100,
+        relax=0.0,
+    )
+    inverse.formulate()
+    inverse.nonlinear_solve()
+    inversehead = finalhead.copy(data=inverse.head.reshape(finalhead.shape))
+    error = inversehead - finalhead
+    errors_reg.append(abs(error).mean().values)
+
+plt.figure()
+plt.plot(reg_values, errors_reg)
+plt.xscale("log")
+plt.xlabel("Regularization weight")
+plt.ylabel("Mean absolute error (m)")
+plt.title("Error vs Regularization Weight")
+plt.show()
+
+# %%
 
 # min_error_index_reg = np.argmin(errors_reg)
 # min_reg = reg_values[min_error_index_reg]
 # min_error_reg = errors_reg[min_error_index_reg]
 # print(f"Optimal reg: {min_reg:.2f}, with mean error: {min_error_reg:.4f} m")
+
+sorted_indices_reg = np.argsort(errors_reg)
+top5_indices_reg = sorted_indices_reg[:5]
+top5_reg = reg_values[top5_indices_reg]
+top5_errors_reg = np.array(errors_reg)[top5_indices_reg]
+
+for i in range(5):
+    print(f"Rank {i+1}: reg = {top5_reg[i]:.2f}, error = {top5_errors_reg[i]:.4f} m")
 
 # %%
 
@@ -372,3 +392,8 @@ plt.show()
 # plt.ylabel("Mean absolute error (m)")
 # plt.title(f"Error per run | N_PIEZOMETERS={N_PIEZOMETERS} | T={TRANSMISSIVITY} | reg_weight={REG_WEIGHT}")
 # plt.show()
+
+# %%
+
+import datetime
+print(f"End of run at {datetime.datetime.now().strftime('%H:%M:%S')}")
