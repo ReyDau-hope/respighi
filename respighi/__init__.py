@@ -4,10 +4,15 @@ from respighi.groundwaterflow import (
     Drainage,
     GroundwaterModel,
     HeadBoundary,
+    HorizontalFlowBarrier,
     Recharge,
     River,
 )
 from respighi.inverse import InverseProblem
+from respighi.layer_reduction import (
+    effective_transmissivity,
+    two_layer_effective_transmisivity,
+)
 from respighi.target import (
     CellSampling,
     CompositeTarget,
@@ -19,6 +24,7 @@ from respighi.target import (
 __all__ = (
     "Recharge",
     "HeadBoundary",
+    "HorizontalFlowBarrier",
     "Drainage",
     "River",
     "GroundwaterModel",
@@ -28,4 +34,6 @@ __all__ = (
     "ModelTarget",
     "CompositeTarget",
     "InverseProblem",
+    "effective_transmissivity",
+    "two_layer_effective_transmisivity",
 )
