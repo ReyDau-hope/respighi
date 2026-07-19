@@ -1,8 +1,4 @@
 # %%
-import os
-print(os.getcwd())
-
-# %%
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -37,6 +33,7 @@ SEED = 12345
 
 def slice_dataset(ds):
     return ds.sel(x=slice(XMIN, XMAX), y=slice(YMAX, YMIN))
+
 
 head = xr.open_dataset("../../case/ibrahym/ibrahym-head-l1-100m.nc")["head"]
 modelhead = slice_dataset(head.isel(time=-1)) #Previously named finalhead
