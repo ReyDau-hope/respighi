@@ -1,11 +1,13 @@
+import platform
 import warnings
+from typing import Literal
 
 import numpy as np
 import xarray as xr
 from scipy import sparse
 
 from respighi.groundwaterflow import GroundwaterModel
-from respighi.pardiso import PardisoWrapper
+from respighi.linearsolvers.direct import make_direct_solver
 from respighi.target import FittingTarget
 
 
@@ -35,7 +37,7 @@ class InverseProblem:
         - L: regularization operator (Laplacian)
         - α: regularization weight
 
-    The problem is solved using the Lagrangian approach with KKT conditions,
+    The problem is solved using the Lagrangian approach,
     forming a saddle-point system. Nonlinearity from head-dependent conductances
     is handled via Picard iteration.
 
@@ -63,7 +65,13 @@ class InverseProblem:
         maxiter: int = 30,
         maxdh=1e-4,
         relax=0.0,
+        solver_backend: Literal["pardiso", "mumps", "scipy"] | None = None,
     ):
+        # On macOS: Default to MUMPS instead of Intel Pardiso
+        if solver_backend is None:
+            solver_backend = "mumps" if platform.system() == "Darwin" else "pardiso"
+        self.solver_backend = solver_backend
+
         # Store core attributes
         self.gwf = groundwatermodel
         self.target = target
@@ -212,7 +220,9 @@ class InverseProblem:
         and numerical factorization (phase 22).
         """
         self._formulate_gwf(dt=dt)
-        self.linearsolver = PardisoWrapper(self.K, self.rhs, self.x)
+        self.linearsolver = make_direct_solver(
+            self.solver_backend, self.K, self.rhs, self.x
+        )
         # Analysis is the most costly phase.
         self.linearsolver.analyze()
         self.linearsolver.factorize()
@@ -382,4 +392,130 @@ class InverseProblem:
             dims=("y", "x"),
             coords={"y": self.gwf._coords["y"], "x": self.gwf._coords["x"]},
             name="lagrangian",
+        )
+
+    def observation_influence_functions(
+        self,
+        batch_size: int | None = None,
+    ):
+        """
+        Estimate head variance contribution from observation uncertainty.
+
+        For each observation i, computes the influence function
+
+            phi_i = d h / d d_i
+
+        by solving the already-factorized system with a unit perturbation in
+        the observation RHS row. The variance contribution is
+
+            v_h = sum_i sigma_i^2 * phi_i^2
+
+        """
+        if self.linearsolver is None:
+            raise RuntimeError("Must call formulate() before influence estimation")
+
+        n_obs = len(self.target.d)
+        N = len(self.rhs)
+        obs_rows = np.arange(self.rhs_obs_slice.start, self.rhs_obs_slice.stop)
+        if batch_size is None:
+            batch_size = n_obs
+
+        Phi = np.zeros((self.n, n_obs))
+        for start in range(0, n_obs, batch_size):
+            stop = min(start + batch_size, n_obs)
+            m = stop - start
+            B = np.zeros((N, m))
+            B[obs_rows[start:stop], np.arange(m)] = 1.0
+            X = self.linearsolver.solve_multi(B)
+            Phi[:, start:stop] = X[: self.n, :]
+
+        return Phi
+
+    def boundary_influence_functions(self):
+        """
+        Compute head influence functions for all head boundaries.
+
+        Column k gives psi_k = dh / d delta_k, the sensitivity of the head
+        field to a conductance-and-sigma-weighted coherent shift of boundary k.
+        """
+        if self.linearsolver is None:
+            raise RuntimeError("Must call formulate() before influence estimation")
+
+        N = len(self.rhs)
+        n_boundaries = len(self.gwf.head_boundaries)
+        flow_start = self.rhs_flow_slice.start
+
+        B = np.zeros((N, n_boundaries))
+        for k, boundary in enumerate(self.gwf.head_boundaries):
+            B[flow_start : flow_start + self.n, k] = (
+                boundary.conductance.ravel() * boundary.sigma.ravel()
+            )
+
+        X = self.linearsolver.solve_multi(B)
+        return X[: self.n, :]
+
+    def estimate_variance(self, batch_size: int | None = None):
+        r"""
+        Estimate head variance from observation and boundary uncertainty.
+
+        Combines two sources of uncertainty via first-order linear error
+        propagation through the factorized system:
+
+        - Observation uncertainty: each piezometer contributes a variance
+        proportional to ``target.sigma[i]**2``, weighted by its influence
+        function ``phi_i = dh / dd_i``.
+        - Boundary uncertainty: each head boundary contributes a variance
+        from a spatially coherent shift, weighted by the conductance and
+        ``boundary.sigma`` fields, expressed as ``psi_k = dh / d delta_k``.
+
+        The total variance is:
+
+        .. math::
+
+            \text{Var}(\\mathbf{h}) =
+            \sum_i \sigma_i^2 \, \\boldsymbol{\phi}_i^2
+            + \sum_k \boldsymbol{\psi}_k^2
+
+        where :math:`\sigma_i` is already absorbed into :math:`\boldsymbol{\psi}_k`
+        via the conductance-sigma weighting in
+        :meth:`boundary_influence_functions`.
+
+        Observation and boundary errors are assumed mutually independent, so
+        their variance contributions add. All influence functions are computed
+        via multi-RHS solves reusing the existing PARDISO or MUMPS factorization; no
+        additional factorization is required.
+
+        .. note::
+
+            This is a first-order estimate, linearized around the converged
+            head solution. It captures uncertainty due to observation noise
+            and boundary condition uncertainty, but not structural model error
+            (e.g. transmissivity uncertainty, incorrect boundary placement).
+            The spatial pattern is therefore more reliable than the absolute
+            magnitudes, which depend on the physical calibration of
+            ``target.sigma`` and ``boundary.sigma``.
+
+        Parameters
+        ----------
+        batch_size : int, optional
+            Number of observation influence functions to solve simultaneously.
+            If None, all observations are solved in a single multi-RHS call.
+            Reduce this if memory is a concern for large observation sets.
+
+        Returns
+        -------
+        variance : xr.DataArray of shape (layer, y, x)
+            Pointwise head variance in units of head squared (m²), with the
+            same grid coordinates as the groundwater model.
+        """
+        sigma_obs = self.target.sigma
+        Phi_obs = self.observation_influence_functions(batch_size=batch_size)
+        Phi_bc = self.boundary_influence_functions()
+        var = np.sum((Phi_obs * sigma_obs) ** 2, axis=1)
+        var += np.sum(Phi_bc**2, axis=1)
+        return xr.DataArray(
+            data=var.reshape(self.gwf.transmissivity.shape),
+            dims=("layer", "y", "x"),
+            coords=self.gwf._coords,
+            name="variance",
         )
