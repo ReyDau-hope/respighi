@@ -1,6 +1,3 @@
-# %%
-import os
-print(os.getcwd())
 
 # %%
 
@@ -38,6 +35,7 @@ SEED = 12345
 def slice_dataset(ds):
     return ds.sel(x=slice(XMIN, XMAX), y=slice(YMAX, YMIN))
 
+#Using original data
 head = xr.open_dataset("../../case/ibrahym/ibrahym-head-l1-100m.nc")["head"]
 modelhead = slice_dataset(head.isel(time=-1)) #Previously named finalhead
 drain_ds = slice_dataset(xr.open_dataset("../../case/ibrahym/ibrahym-drains-100m.nc"))
@@ -54,11 +52,26 @@ tiledrain_ds = slice_dataset(
 subsoil = slice_dataset(xr.open_dataset("../../case/ibrahym/ibrahym-subsoil-100m.nc"))
 hfb_gdf = gpd.read_file("../../case/ibrahym/hfb-12.gpkg") #Reads a GeoPackage file containing the horizontal flow barriers (HFBs) and creates a GeoDataFrame (gdf) from it.
 
+
+
 # Select the winter data
 river_ds = river_ds.isel(time=0)
 
 # Create a transmissivity
 transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), TRANSMISSIVITY)
+
+# %%
+#Check conductance values of the boundary conditions
+
+# base = "../../case/ibrahym/"
+
+# for name in ["rivers", "largerivers", "drains", "tiledrainage"]:
+#     orig = xr.open_dataset(f"{base}ibrahym-{name}-100m.nc")["conductance"]
+#     for factor in [0.5, 2, 3]:
+#         scaled = xr.open_dataset(f"{base}ibrahym-{name}-100m-cond{factor}.nc")["conductance"]
+#         # Compare only where the original is non-NaN; check scaled == orig * factor
+#         ok = np.allclose(scaled.values, orig.values * factor, equal_nan=True)
+#         print(f"{name:12s} factor {factor}: exact match = {ok}")
 
 # %%
 # Initialize the relevant boundary condition classes, initialize the
@@ -81,7 +94,12 @@ hfb = rsp.HorizontalFlowBarrier.from_geodataframe(
     barriers=hfb_gdf,
     template=transmissivity,
     max_snap_distance=10.0,
-)
+) #can be skipped
+
+# CONDUCTANCE_MULTIPLIER = 0.5
+# tiledrain.conductance *= CONDUCTANCE_MULTIPLIER
+
+#repeat for other BCs
 
 # %%
 
@@ -279,13 +297,115 @@ for kD in kD_values:
     error = inversehead - modelhead
     errors.append(abs(error).mean().values)
 
-plt.figure()
-plt.plot(kD_values, errors)
+# Linear plot
+plt.figure(figsize=(8, 6))
+plt.plot(kD_values, errors, marker="o")
 plt.xlabel("kD (m²/day)")
 plt.ylabel("Mean absolute error (m)")
 plt.title("Error vs Transmissivity")
 plt.show()
 
+# Log plot
+plt.figure(figsize=(8, 6))
+plt.plot(kD_values, errors, marker="o")
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Transmissivity (m²/d)")
+plt.ylabel("Mean absolute error (m)")
+plt.title("Error vs Transmissivity (log-log)")
+plt.show()
+
+
+# %%
+# Overlay error-vs-kD curves across conductance variants
+# PREREQ: run these upstream once (from ORIGINAL data) so they exist in the session:
+#   modelhead, subsoil, hfb, target   (target built from original head + piezometers)
+
+BASE = "../../case/ibrahym/ibrahym-"
+
+# variant label -> suffix on the conductance-bearing files ("" = original)
+variants = {
+    "Original":  "",
+    "cond x0.5": "-cond0.5",
+    "cond x2":   "-cond2",
+    "cond x3":   "-cond3",
+}
+
+kD_values = np.logspace(np.log10(100), np.log10(50000), 20)
+results = {}   # label -> list of errors
+
+for label, suffix in variants.items():
+    # conductance-bearing datasets for THIS variant
+    river_ds        = slice_dataset(xr.open_dataset(f"{BASE}rivers-100m{suffix}.nc")).isel(time=0)
+    large_river_ds  = slice_dataset(xr.open_dataset(f"{BASE}largerivers-100m{suffix}.nc"))
+    drain_ds        = slice_dataset(xr.open_dataset(f"{BASE}drains-100m{suffix}.nc"))
+    tiledrain_ds    = slice_dataset(xr.open_dataset(f"{BASE}tiledrainage-100m{suffix}.nc"))
+    overlandflow_ds = slice_dataset(xr.open_dataset(f"{BASE}overlandflow-100m.nc"))  # always original
+
+    # rebuild boundary objects from these datasets
+    river        = rsp.River.from_dataset(river_ds)
+    large_river  = rsp.River.from_dataset(large_river_ds)
+    drain        = rsp.Drainage.from_dataset(drain_ds)
+    tiledrain    = rsp.Drainage.from_dataset(tiledrain_ds)
+    overlandflow = rsp.Drainage.from_dataset(overlandflow_ds, constant_conductance=500.0)
+
+    errors = []
+    for kD in kD_values:
+        transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), kD)
+        recharge = rsp.Recharge(rate=xr.full_like(transmissivity, RECHARGE).to_numpy())
+        gwf = rsp.GroundwaterModel(
+            area=100.0 * 100.0,
+            initial=modelhead,
+            recharge=recharge,
+            head_boundaries=[river, large_river, drain, tiledrain, overlandflow],
+            transmissivity=transmissivity,
+            horizontal_flow_barriers=[hfb],
+            xclose=1e-6,
+            maxiter=50,
+        )
+        gwf.formulate()
+        gwf.nonlinear_solve()
+        inverse = rsp.InverseProblem(
+            groundwatermodel=gwf, target=target,
+            regularization_weight=REG_WEIGHT, maxiter=100, relax=0.0,
+        )
+        inverse.formulate()
+        inverse.nonlinear_solve()
+        inversehead = inverse.head.isel(layer=0)
+        error = inversehead - modelhead
+        errors.append(abs(error).mean().values)
+
+    results[label] = errors
+    print(f"done: {label}")
+
+# %%
+# Overlay plot
+plt.figure(figsize=(9, 6))
+for label, errors in results.items():
+    plt.plot(kD_values, errors, marker="o", label=label)
+plt.xscale("log")
+plt.xlabel("kD (m²/day)")
+plt.ylabel("Mean absolute error (m)")
+plt.title("Error vs Transmissivity — conductance variants")
+plt.legend()
+plt.show()
+
+
+# %%
+# Original-only kD sweep, log axes (matches the old presentation graph)
+plt.figure(figsize=(8, 6))
+plt.plot(kD_values, results["Original"], marker="o")
+plt.xscale("log")
+plt.yscale("log")     # image 2 had log y too; drop this line for linear y like image 3
+plt.xlabel("Transmissivity (m²/d)")
+plt.ylabel("Mean absolute error (m)")
+plt.title("Error vs Transmissivity — original data")
+plt.show()
+# %%
+# Numbers behind shift-vs-deform: optimal kD + min error per variant
+# for label, errors in results.items():
+#     i = int(np.argmin(errors))
+#     print(f"{label:9s}: optimal kD = {kD_values[i]:7.1f} m²/day, min error = {errors[i]:.4f} m")
 # %%
 
 # min_error_index = np.argmin(errors)
@@ -293,11 +413,11 @@ plt.show()
 # min_error = errors[min_error_index]
 # print(f"Optimal kD: {min_kD:.2f} m²/day, with mean error: {min_error:.4f} m")
 
-sorted_indices_kD = np.argsort(errors)
-top5_indices_kD = sorted_indices_kD[:5]
-top5_kD = kD_values[top5_indices_kD]
-top5_errors_kD = np.array(errors)[top5_indices_kD]
+# sorted_indices_kD = np.argsort(errors)
+# top5_indices_kD = sorted_indices_kD[:5]
+# top5_kD = kD_values[top5_indices_kD]
+# top5_errors_kD = np.array(errors)[top5_indices_kD]
 
-for i in range(5):
-    print(f"Rank {i+1}: kD = {top5_kD[i]:.2f}, error = {top5_errors_kD[i]:.4f} m")
+# for i in range(5):
+#     print(f"Rank {i+1}: kD = {top5_kD[i]:.2f}, error = {top5_errors_kD[i]:.4f} m")
 # %%

@@ -1,4 +1,5 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:system"
-	"python.defaultInterpreterPath": "C:\\Users\\sebas\\Documents\\Thesis Interpolating GW Levels\\respighi-mastercopy\\.pixi\\envs\\default\\python.exe"
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.defaultInterpreterPath": "C:\\Users\\sebas\\Documents\\Thesis Interpolating GW Levels\\respighi-mastercopy\\.pixi\\envs\\default\\python.exe",
+    "claudeCode.useTerminal": false
 }
