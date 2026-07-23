@@ -7,6 +7,7 @@ import numpy as np
 import xarray as xr
 import xugrid as xu
 from shapely.geometry import Point
+import gc
 
 import respighi as rsp
 
@@ -23,11 +24,12 @@ YMAX = 370_000.0
 # YMAX = YMIN + 15_000.0
 
 #Define parameters
-N_PIEZOMETERS = 500
-TRANSMISSIVITY = 1000.00
+N_PIEZOMETERS = 200
+TRANSMISSIVITY = 4000.00
 RECHARGE = 0.0001
-REG_WEIGHT = 1000
+REG_WEIGHT = 10
 SEED = 12345
+
 
 # %%
 
@@ -35,24 +37,19 @@ SEED = 12345
 def slice_dataset(ds):
     return ds.sel(x=slice(XMIN, XMAX), y=slice(YMAX, YMIN))
 
-#Using original data
-head = xr.open_dataset("../../case/ibrahym/ibrahym-head-l1-100m.nc")["head"]
-modelhead = slice_dataset(head.isel(time=-1)) #Previously named finalhead
-drain_ds = slice_dataset(xr.open_dataset("../../case/ibrahym/ibrahym-drains-100m.nc"))
-overlandflow_ds = slice_dataset(
-    xr.open_dataset("../../case/ibrahym/ibrahym-overlandflow-100m.nc")
-)
-river_ds = slice_dataset(xr.open_dataset("../../case/ibrahym/ibrahym-rivers-100m.nc"))
-large_river_ds = slice_dataset(
-    xr.open_dataset("../../case/ibrahym/ibrahym-largerivers-100m.nc")
-)
-tiledrain_ds = slice_dataset(
-    xr.open_dataset("../../case/ibrahym/ibrahym-tiledrainage-100m.nc")
-)
-subsoil = slice_dataset(xr.open_dataset("../../case/ibrahym/ibrahym-subsoil-100m.nc"))
-hfb_gdf = gpd.read_file("../../case/ibrahym/hfb-12.gpkg") #Reads a GeoPackage file containing the horizontal flow barriers (HFBs) and creates a GeoDataFrame (gdf) from it.
+SCENARIO = "-cond2"   # "" for original, "-cond0.5", "-cond2", "-cond3"
 
+BASE = "../../case/ibrahym/ibrahym-"
 
+head = xr.open_dataset(f"{BASE}head-l1-100m.nc")["head"]
+modelhead = slice_dataset(head.isel(time=-1))
+drain_ds        = slice_dataset(xr.open_dataset(f"{BASE}drains-100m{SCENARIO}.nc"))
+river_ds        = slice_dataset(xr.open_dataset(f"{BASE}rivers-100m{SCENARIO}.nc"))
+large_river_ds  = slice_dataset(xr.open_dataset(f"{BASE}largerivers-100m{SCENARIO}.nc"))
+tiledrain_ds    = slice_dataset(xr.open_dataset(f"{BASE}tiledrainage-100m{SCENARIO}.nc"))
+overlandflow_ds = slice_dataset(xr.open_dataset(f"{BASE}overlandflow-100m.nc"))  # always original
+subsoil         = slice_dataset(xr.open_dataset(f"{BASE}subsoil-100m.nc"))       # always original
+hfb_gdf         = gpd.read_file(f"{BASE.replace('ibrahym-', '')}hfb-12.gpkg")
 
 # Select the winter data
 river_ds = river_ds.isel(time=0)
@@ -77,9 +74,6 @@ transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), TRANSMISSI
 # Initialize the relevant boundary condition classes, initialize the
 # groundwater model, formulate, then solve.
 
-
-transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), TRANSMISSIVITY)
-
 river = rsp.River.from_dataset(river_ds)
 large_river = rsp.River.from_dataset(large_river_ds)
 drain = rsp.Drainage.from_dataset(drain_ds)
@@ -96,10 +90,18 @@ hfb = rsp.HorizontalFlowBarrier.from_geodataframe(
     max_snap_distance=10.0,
 ) #can be skipped
 
-# CONDUCTANCE_MULTIPLIER = 0.5
-# tiledrain.conductance *= CONDUCTANCE_MULTIPLIER
+# %%
+BASE = "../../case/ibrahym/ibrahym-"
 
-#repeat for other BCs
+for name in ["rivers", "largerivers", "drains", "tiledrainage"]:
+    orig = xr.open_dataset(f"{BASE}{name}-100m.nc")["conductance"]
+    print(f"\n{name}")
+    print(f"  original : min {float(orig.min()):.4f}  max {float(orig.max()):.4f}  mean {float(orig.mean()):.4f}")
+    for factor in ["0.5", "2", "3"]:
+        scaled = xr.open_dataset(f"{BASE}{name}-100m-cond{factor}.nc")["conductance"]
+        ratio = float(scaled.mean()) / float(orig.mean())
+        print(f"  x{factor:4s}    : min {float(scaled.min()):.4f}  max {float(scaled.max()):.4f}  "
+              f"mean {float(scaled.mean()):.4f}  (ratio {ratio:.4f})")
 
 # %%
 
@@ -205,7 +207,10 @@ ax1.set_aspect(1.0)
 
 error.plot.imshow(levels=np.arange(-1.0, 1.0, 0.1))
 print(abs(error).mean())
+print([a for a in dir(inverse) if 'recharge' in a.lower() or 'rate' in a.lower()])
+print(float(inverse.recharge.mean()))
 
+#########################################RESPIGHI END###########################################
 # %%
 
 #For loop reg_weight
@@ -260,60 +265,61 @@ print(abs(error).mean())
 thickness = subsoil.top - subsoil.bottom
 kD_per_layer = subsoil.kh * thickness
 kD_total = kD_per_layer.sum(dim="layer")
+print(kD_total)
 
 # %%
 #For loop kD values
 
-kD_values = np.linspace(140, 8800, 20)
-errors = []
+# kD_values = np.linspace(140, 8800, 20)
+# errors = []
 
-for kD in kD_values:
-    transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), kD)
-    recharge = rsp.Recharge(
-        rate=xr.full_like(transmissivity, RECHARGE).to_numpy(),
-    )
-    gwf = rsp.GroundwaterModel(
-        area=100.0 * 100.0,
-        initial=modelhead,
-        recharge=recharge,
-        head_boundaries=[river, large_river, drain, tiledrain, overlandflow],
-        transmissivity=transmissivity,
-        horizontal_flow_barriers=[hfb],
-        xclose=1e-6,
-        maxiter=50,
-    )
-    gwf.formulate()
-    gwf.nonlinear_solve()
-    inverse = rsp.InverseProblem(
-        groundwatermodel=gwf,
-        target=target,
-        regularization_weight=REG_WEIGHT,
-        maxiter=100,
-        relax=0.0,
-    )
-    inverse.formulate()
-    inverse.nonlinear_solve()
-    inversehead = inverse.head.isel(layer=0)
-    error = inversehead - modelhead
-    errors.append(abs(error).mean().values)
+# for kD in kD_values:
+#     transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), kD)
+#     recharge = rsp.Recharge(
+#         rate=xr.full_like(transmissivity, RECHARGE).to_numpy(),
+#     )
+#     gwf = rsp.GroundwaterModel(
+#         area=100.0 * 100.0,
+#         initial=modelhead,
+#         recharge=recharge,
+#         head_boundaries=[river, large_river, drain, tiledrain, overlandflow],
+#         transmissivity=transmissivity,
+#         horizontal_flow_barriers=[hfb],
+#         xclose=1e-6,
+#         maxiter=50,
+#     )
+#     gwf.formulate()
+#     gwf.nonlinear_solve()
+#     inverse = rsp.InverseProblem(
+#         groundwatermodel=gwf,
+#         target=target,
+#         regularization_weight=REG_WEIGHT,
+#         maxiter=100,
+#         relax=0.0,
+#     )
+#     inverse.formulate()
+#     inverse.nonlinear_solve()
+#     inversehead = inverse.head.isel(layer=0)
+#     error = inversehead - modelhead
+#     errors.append(abs(error).mean().values)
 
-# Linear plot
-plt.figure(figsize=(8, 6))
-plt.plot(kD_values, errors, marker="o")
-plt.xlabel("kD (m²/day)")
-plt.ylabel("Mean absolute error (m)")
-plt.title("Error vs Transmissivity")
-plt.show()
+# # Linear plot
+# plt.figure(figsize=(8, 6))
+# plt.plot(kD_values, errors, marker=".")
+# plt.xlabel("kD (m²/day)")
+# plt.ylabel("Mean absolute error (m)")
+# plt.title("Error vs Transmissivity")
+# plt.show()
 
-# Log plot
-plt.figure(figsize=(8, 6))
-plt.plot(kD_values, errors, marker="o")
-plt.xscale("log")
-plt.yscale("log")
-plt.xlabel("Transmissivity (m²/d)")
-plt.ylabel("Mean absolute error (m)")
-plt.title("Error vs Transmissivity (log-log)")
-plt.show()
+# # Log plot
+# plt.figure(figsize=(8, 6))
+# plt.plot(kD_values, errors, marker=".")
+# plt.xscale("log")
+# plt.yscale("log")
+# plt.xlabel("Transmissivity (m²/d)")
+# plt.ylabel("Mean absolute error (m)")
+# plt.title("Error vs Transmissivity (log-log)")
+# plt.show()
 
 
 # %%
@@ -331,7 +337,7 @@ variants = {
     "cond x3":   "-cond3",
 }
 
-kD_values = np.logspace(np.log10(100), np.log10(50000), 20)
+kD_values = np.logspace(np.log10(1000), np.log10(10000), 40)
 results = {}   # label -> list of errors
 
 for label, suffix in variants.items():
@@ -374,6 +380,13 @@ for label, suffix in variants.items():
         inversehead = inverse.head.isel(layer=0)
         error = inversehead - modelhead
         errors.append(abs(error).mean().values)
+        # release Pardiso's C-level MKL memory (gc.collect can't reach it)
+        for obj in (inverse, gwf):
+            ls = getattr(obj, "linearsolver", None)
+            if ls is not None and hasattr(ls, "free_memory"):
+                ls.free_memory()
+        del inverse, gwf, inversehead, error, transmissivity, recharge
+        gc.collect()
 
     results[label] = errors
     print(f"done: {label}")
@@ -382,7 +395,7 @@ for label, suffix in variants.items():
 # Overlay plot
 plt.figure(figsize=(9, 6))
 for label, errors in results.items():
-    plt.plot(kD_values, errors, marker="o", label=label)
+    plt.plot(kD_values, errors, marker=".", label=label)
 plt.xscale("log")
 plt.xlabel("kD (m²/day)")
 plt.ylabel("Mean absolute error (m)")
@@ -394,13 +407,43 @@ plt.show()
 # %%
 # Original-only kD sweep, log axes (matches the old presentation graph)
 plt.figure(figsize=(8, 6))
-plt.plot(kD_values, results["Original"], marker="o")
+plt.plot(kD_values, results["Original"], marker=".")
 plt.xscale("log")
 plt.yscale("log")     # image 2 had log y too; drop this line for linear y like image 3
 plt.xlabel("Transmissivity (m²/d)")
 plt.ylabel("Mean absolute error (m)")
 plt.title("Error vs Transmissivity — original data")
 plt.show()
+# %%
+# Optimum kD per conductance scenario
+print("Optimum kD (minimum error) per scenario:")
+for label, errs in results.items():
+    errs = np.array(errs)
+    i = int(np.argmin(errs))
+    print(f"  {label:9s}: kD = {kD_values[i]:8.1f} m²/day   (error = {errs[i]:.4f} m)")
+# %%
+# Optimum kD + how flat the minimum is (kD within 1% of min error)
+print("Optimum kD and near-optimal range per scenario:")
+for label, errs in results.items():
+    errs = np.array(errs)
+    i = int(np.argmin(errs))
+    emin = errs[i]
+    within = kD_values[errs <= emin * 1.01]   # kD values within 1% of the min
+    print(f"  {label:9s}: opt kD = {kD_values[i]:8.1f} m²/day  (err {emin:.4f} m); "
+          f"range {within.min():.0f}–{within.max():.0f}")
+
+#%%
+# %%
+# Run parameters (for record-keeping)
+print("=== Run parameters ===")
+#print(f"kD sweep      : {kD_values.min():.0f} – {kD_values.max():.0f} m²/day, {len(kD_values)} points (log-spaced)")
+print(f"N_PIEZOMETERS : {N_PIEZOMETERS}")
+print(f"TRANSMISSIVITY: {TRANSMISSIVITY}")
+print(f"RECHARGE      : {RECHARGE}")
+print(f"REG_WEIGHT    : {REG_WEIGHT}")
+print(f"SEED          : {SEED}")
+#print(f"variants      : {list(variants.keys())}")
+print("======================")
 # %%
 # Numbers behind shift-vs-deform: optimal kD + min error per variant
 # for label, errors in results.items():
@@ -420,4 +463,7 @@ plt.show()
 
 # for i in range(5):
 #     print(f"Rank {i+1}: kD = {top5_kD[i]:.2f}, error = {top5_errors_kD[i]:.4f} m")
+# %%
+print("inverse:", [a for a in dir(inverse) if 'solver' in a.lower() or 'free' in a.lower()])
+print("gwf:", [a for a in dir(gwf) if 'solver' in a.lower() or 'free' in a.lower()])
 # %%
