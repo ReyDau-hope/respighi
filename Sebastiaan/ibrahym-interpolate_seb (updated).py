@@ -1,4 +1,3 @@
-
 # %%
 
 import geopandas as gpd
@@ -33,11 +32,10 @@ SEED = 12345
 
 # %%
 
-
 def slice_dataset(ds):
     return ds.sel(x=slice(XMIN, XMAX), y=slice(YMAX, YMIN))
 
-SCENARIO = "-cond2"   # "" for original, "-cond0.5", "-cond2", "-cond3"
+SCENARIO = ""   # "" for original, "-cond0.5", "-cond2", "-cond3"
 
 BASE = "../../case/ibrahym/ibrahym-"
 
@@ -213,7 +211,7 @@ print(float(inverse.recharge.mean()))
 #########################################RESPIGHI END###########################################
 # %%
 
-#For loop reg_weight
+#######################======FOR LOOP REG WEIGHT ============####################
 
 # reg_values = np.logspace(-1, 6, 50)
 # errors_reg = []
@@ -268,7 +266,16 @@ kD_total = kD_per_layer.sum(dim="layer")
 print(kD_total)
 
 # %%
-#For loop kD values
+print("dims:", dict(subsoil.sizes))
+print("layers:", subsoil.layer.values)
+print("variables:", list(subsoil.data_vars))
+print("x:", float(subsoil.x.min()), "-", float(subsoil.x.max()), "| n =", subsoil.x.size)
+print("y:", float(subsoil.y.min()), "-", float(subsoil.y.max()), "| n =", subsoil.y.size)
+print()
+print(subsoil)
+
+# %%
+####============ FOR LOOP FINDING OPTIMUM KD VALUE =============######
 
 # kD_values = np.linspace(140, 8800, 20)
 # errors = []

@@ -1,0 +1,20 @@
+# SEED=12345, REG_WEIGHT=10, N_REPEATS=3, kD grid 140-8800
+sigma_cm=1, opt_kD=2418.9, error=0.3503
+sigma_cm=10, opt_kD=7888.4, error=0.4025
+sigma_cm=50, opt_kD=8800.0, error=0.7261
+# SEED=12345, REG_WEIGHT=10, N_REPEATS=5, kD grid 1000-4000
+sigma_cm=1, opt_kD=2363.6, error=0.3503
+sigma_cm=5, opt_kD=2363.6, error=0.3697
+sigma_cm=10, opt_kD=2363.6, error=0.4140
+sigma_cm=20, opt_kD=4000.0, error=0.5185
+sigma_cm=50, opt_kD=4000.0, error=0.8984
+# SEED=12345, REG_WEIGHT=10, N_REPEATS=5, kD grid 1000-4000
+sigma_cm=1, opt_kD=2363.6, error=0.3503
+sigma_cm=5, opt_kD=2363.6, error=0.3697
+sigma_cm=10, opt_kD=2363.6, error=0.4140
+sigma_cm=20, opt_kD=4000.0, error=0.5185
+sigma_cm=50, opt_kD=4000.0, error=0.8984
+# SEED=12345, REG_WEIGHT=10, N_REPEATS=5, kD grid 1000-8800
+sigma_cm=10, opt_kD=2231.6, error=0.4136
+sigma_cm=20, opt_kD=8800.0, error=0.4876
+sigma_cm=50, opt_kD=8800.0, error=0.7701
