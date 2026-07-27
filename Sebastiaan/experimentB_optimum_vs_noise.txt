@@ -18,3 +18,11 @@ sigma_cm=50, opt_kD=4000.0, error=0.8984
 sigma_cm=10, opt_kD=2231.6, error=0.4136
 sigma_cm=20, opt_kD=8800.0, error=0.4876
 sigma_cm=50, opt_kD=8800.0, error=0.7701
+# SEED=12345, REG_WEIGHT=10, N_REPEATS=5, kD grid 3000-20000
+sigma_cm=10, opt_kD=20000.0, error=0.3818
+sigma_cm=20, opt_kD=20000.0, error=0.4314
+sigma_cm=50, opt_kD=20000.0, error=0.6267
+# SEED=12345, REG_WEIGHT=10, N_REPEATS=5, kD grid 1000-35000
+sigma_cm=10, opt_kD=35000.0, error=0.3794
+sigma_cm=20, opt_kD=35000.0, error=0.4182
+sigma_cm=50, opt_kD=35000.0, error=0.5747
