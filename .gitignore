@@ -16,3 +16,5 @@ case/*
 *.png
 !Sebastiaan/*.png
 !Findings/*.png
+!Sebastiaan/**/*.png
+!Findings/**/*.png
