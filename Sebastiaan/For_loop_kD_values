@@ -26,7 +26,7 @@ YMAX = 370_000.0
 N_PIEZOMETERS = 200
 TRANSMISSIVITY = 1000.00
 RECHARGE = 0.0001
-REG_WEIGHT = 10
+REG_WEIGHT = 10000
 SEED = 12345
 
 
@@ -144,7 +144,7 @@ target = rsp.CellSampling(x, y, headvalues, grid)
 
 sigma_cm  = np.array([10, 20, 50])
 sigma_m   = sigma_cm / 100.0
-kD_values = np.linspace(1000, 8800, 20) #before (1000, 4000, 12) kD value range and no. of steps
+kD_values = np.linspace(1000, 10000, 20) #normal values (1000, 4000, 12) kD value range and no. of steps
 N_REPEATS = 5     # noise realisations per (sigma, kD), averaged
 
 # clean sampled heads at piezometer locations (placement fixed by SEED upstream)
