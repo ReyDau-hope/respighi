@@ -1,0 +1,22 @@
+# scenario=original, SEED=12345, REG_WEIGHT=100, N_REPEATS=NA, kD grid 1000-10000, 20 pts
+rank  1: kD=  3842.1, error=0.260552
+rank  2: kD=  3368.4, error=0.260596
+rank  3: kD=  4315.8, error=0.261171
+rank  4: kD=  2894.7, error=0.261676
+rank  5: kD=  4789.5, error=0.262261
+
+
+# scenario=-cond2, SEED=12345, REG_WEIGHT=100, N_REPEATS=NA, kD grid 1000-10000, 20 pts
+rank  1: kD=  7157.9, error=0.263951
+rank  2: kD=  7631.6, error=0.264087
+rank  3: kD=  6684.2, error=0.264118
+rank  4: kD=  8105.3, error=0.264508
+rank  5: kD=  6210.5, error=0.264625
+
+# scenario=original, SEED=12345, REG_WEIGHT=10, N_REPEATS=NA, kD grid 1000-10000, 20 pts
+rank  1: kD=  2421.1, error=0.321562
+rank  2: kD=  1947.4, error=0.322730
+rank  3: kD=  2894.7, error=0.322763
+rank  4: kD=  3368.4, error=0.324570
+rank  5: kD=  3842.1, error=0.326625
+

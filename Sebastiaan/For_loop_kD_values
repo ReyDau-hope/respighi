@@ -24,9 +24,9 @@ YMAX = 370_000.0
 
 #Define parameters
 N_PIEZOMETERS = 200
-TRANSMISSIVITY = 1000.00
+TRANSMISSIVITY = 2200.00
 RECHARGE = 0.0001
-REG_WEIGHT = 10000
+REG_WEIGHT = 100
 SEED = 12345
 
 
@@ -138,92 +138,6 @@ headvalues = modelhead.sel(
 ).to_numpy()
 target = rsp.CellSampling(x, y, headvalues, grid)
 
-# %%
-####==== EXPERIMENT B: optimum kD re-found at each noise level ====####
-# For each sigma, sweep kD, find the kD that minimises error.
-
-sigma_cm  = np.array([10, 20, 50])
-sigma_m   = sigma_cm / 100.0
-kD_values = np.linspace(1000, 10000, 20) #normal values (1000, 4000, 12) kD value range and no. of steps
-N_REPEATS = 5     # noise realisations per (sigma, kD), averaged
-
-# clean sampled heads at piezometer locations (placement fixed by SEED upstream)
-clean_heads = modelhead.sel(x=xr.DataArray(x), y=xr.DataArray(y), method="nearest").to_numpy()
-
-optimum_per_sigma = []   # (sigma_cm, opt_kD, opt_error)
-all_curves = {}          # sigma_cm -> mean error curve over kD
-
-for s_cm, s in zip(sigma_cm, sigma_m):
-    errors_kD = []
-    for kD in kD_values:
-        # build model at this kD (independent of noise)
-        transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), kD)
-        recharge = rsp.Recharge(rate=xr.full_like(transmissivity, RECHARGE).to_numpy())
-        gwf = rsp.GroundwaterModel(
-            area=100.0*100.0, initial=modelhead, recharge=recharge,
-            head_boundaries=[river, large_river, drain, tiledrain, overlandflow],
-            transmissivity=transmissivity, horizontal_flow_barriers=[hfb],
-            xclose=1e-6, maxiter=50,
-        )
-        gwf.formulate()
-        gwf.nonlinear_solve()
-
-        # average error over several noise realisations
-        reps = []
-        for r in range(N_REPEATS):
-            rng_noise = np.random.default_rng(seed=1000 + r)
-            noisy = clean_heads + rng_noise.normal(0.0, s, size=clean_heads.shape)
-            target = rsp.CellSampling(x, y, noisy, grid)
-            inv = rsp.InverseProblem(groundwatermodel=gwf, target=target,
-                                     regularization_weight=REG_WEIGHT, maxiter=100, relax=0.0)
-            inv.formulate()
-            inv.nonlinear_solve()
-            err = inv.head.isel(layer=0) - modelhead
-            reps.append(float(abs(err).mean()))
-            inv.linearsolver.free_memory()
-            del inv; gc.collect()
-
-        errors_kD.append(np.mean(reps))
-        del gwf; gc.collect()
-
-    errors_kD = np.array(errors_kD)
-    i = int(np.argmin(errors_kD))
-    within = kD_values[errors_kD <= errors_kD[i] * 1.02]
-    print(f"sigma {s_cm:2d} cm: opt kD = {kD_values[i]:7.1f}  error {errors_kD[i]:.4f}  "
-          f"| within-2% plateau: {within.min():.0f}–{within.max():.0f}  ({within.size} pts)")
-    optimum_per_sigma.append((s_cm, kD_values[i], errors_kD[i]))
-    all_curves[s_cm] = errors_kD
-    print(f"sigma {s_cm:2d} cm: optimum kD = {kD_values[i]:7.1f} m²/day  (error {errors_kD[i]:.4f} m)")
-
-# %%
-# Overlay the kD-error curves per sigma
-plt.figure(figsize=(9,6))
-for s_cm, curve in all_curves.items():
-    plt.plot(kD_values, curve, marker=".", label=f"σ = {s_cm} cm")
-plt.xscale("log")
-plt.xlabel("kD (m²/day)")
-plt.ylabel("Mean absolute error (m)")
-plt.title("Error vs kD at increasing measurement noise")
-plt.legend()
-plt.show()
-
-# %%
-# Optimum kD as a function of noise
-opt_sigma = [o[0] for o in optimum_per_sigma]
-opt_kD    = [o[1] for o in optimum_per_sigma]
-plt.figure(figsize=(8,6))
-plt.plot(opt_sigma, opt_kD, marker="o")
-plt.xlabel("Measurement noise σ (cm)")
-plt.ylabel("Optimum kD (m²/day)")
-plt.title("Does the optimum kD shift with measurement noise?")
-plt.show()
-
-# %%
-# Save
-with open("experimentB_optimum_vs_noise.txt", "a") as f:
-    f.write(f"# SEED={SEED}, REG_WEIGHT={REG_WEIGHT}, N_REPEATS={N_REPEATS}, kD grid {kD_values.min():.0f}-{kD_values.max():.0f}\n")
-    for s_cm, okd, oerr in optimum_per_sigma:
-        f.write(f"sigma_cm={s_cm}, opt_kD={okd:.1f}, error={oerr:.4f}\n")
 
 # %%
 # Inverse Problem
@@ -274,7 +188,7 @@ print(float(inverse.recharge.mean()))
 # %%
 ####============ FOR LOOP FINDING OPTIMUM KD VALUE =============######
 
-kD_values = np.linspace(140, 8800, 20)
+kD_values = np.linspace(1000, 10000, 20)
 errors = []
 
 for kD in kD_values:
@@ -325,6 +239,24 @@ plt.ylabel("Mean absolute error (m)")
 plt.title("Error vs Transmissivity (log-log)")
 plt.show()
 
+# %%
+# Save ranked kD values (best-fit first) with run parameters
+scenario_label = SCENARIO if SCENARIO else "original"
+
+# pair each kD with its error, sort ascending by error
+ranked = sorted(zip(kD_values, errors), key=lambda pair: pair[1])
+
+with open("ranked_kD.txt", "a") as f:
+    f.write(
+        f"# scenario={scenario_label}, SEED={SEED}, REG_WEIGHT={REG_WEIGHT}, "
+        f"N_REPEATS={N_REPEATS if 'N_REPEATS' in dir() else 'NA'}, "
+        f"kD grid {kD_values.min():.0f}-{kD_values.max():.0f}, {len(kD_values)} pts\n"
+    )
+    for rank, (kd, err) in enumerate(ranked[:5], start=1):
+        f.write(f"rank {rank:2d}: kD={kd:8.1f}, error={err:.6f}\n")
+    f.write("\n")   # blank line between runs
+
+print("saved ranking:", scenario_label)
 
 # %%
 
@@ -340,4 +272,21 @@ top5_errors_kD = np.array(errors)[top5_indices_kD]
 
 for i in range(5):
     print(f"Rank {i+1}: kD = {top5_kD[i]:.2f}, error = {top5_errors_kD[i]:.4f} m")
+
+# %%
+# Save run parameters + fitted recharge stats
+scenario_label = SCENARIO if SCENARIO else "original"
+
+with open("recharge_per_scenario.txt", "a") as f:
+    f.write(
+        f"scenario={scenario_label}, "
+        f"SEED={SEED}, "
+        f"REG_WEIGHT={REG_WEIGHT}, "
+        f"TRANSMISSIVITY={TRANSMISSIVITY}, "
+        f"recharge_mean={float(inverse.recharge.mean()):.6e}, "
+        f"recharge_median={float(np.median(np.asarray(inverse.recharge))):.6e}\n"
+    )
+
+print("saved:", scenario_label)
+
 # %%
