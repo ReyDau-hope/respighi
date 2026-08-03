@@ -20,3 +20,17 @@ rank  3: kD=  2894.7, error=0.322763
 rank  4: kD=  3368.4, error=0.324570
 rank  5: kD=  3842.1, error=0.326625
 
+# scenario=original, SEED=12345, REG_WEIGHT=1000, N_REPEATS=NA, kD grid 1000-10000, 20 pts
+rank  1: kD=  1947.4, error=0.276526
+rank  2: kD=  2421.1, error=0.278060
+rank  3: kD=  1473.7, error=0.279367
+rank  4: kD=  2894.7, error=0.281304
+rank  5: kD=  3368.4, error=0.285672
+
+# scenario=original, SEED=12345, REG_WEIGHT=10000, N_REPEATS=NA, kD grid 1000-10000, 20 pts
+rank  1: kD=  1000.0, error=0.404305
+rank  2: kD=  1473.7, error=0.422244
+rank  3: kD=  1947.4, error=0.439338
+rank  4: kD=  2421.1, error=0.454957
+rank  5: kD=  2894.7, error=0.468192
+

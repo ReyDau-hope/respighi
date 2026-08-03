@@ -26,7 +26,7 @@ YMAX = 370_000.0
 N_PIEZOMETERS = 200
 TRANSMISSIVITY = 2200.00
 RECHARGE = 0.0001
-REG_WEIGHT = 100
+REG_WEIGHT = 10000
 SEED = 12345
 
 
@@ -186,6 +186,59 @@ print([a for a in dir(inverse) if 'recharge' in a.lower() or 'rate' in a.lower()
 print(float(inverse.recharge.mean()))
 
 # %%
+# Save run parameters + fitted recharge stats
+scenario_label = SCENARIO if SCENARIO else "original"
+
+with open("recharge_per_scenario.txt", "a") as f:
+    f.write(
+        f"scenario={scenario_label}, "
+        f"SEED={SEED}, "
+        f"REG_WEIGHT={REG_WEIGHT}, "
+        f"TRANSMISSIVITY={TRANSMISSIVITY}, "
+        f"recharge_mean={float(inverse.recharge.mean()):.6e}, "
+        f"recharge_median={float(np.median(np.asarray(inverse.recharge))):.6e}\n"
+    )
+
+print("saved:", scenario_label)
+
+# %%
+# Fitted recharge: histogram + spatial map  (run after a SINGLE inverse solve)
+from pathlib import Path
+
+OUTDIR = Path(__file__).resolve().parent.parent / "Findings"
+OUTDIR.mkdir(parents=True, exist_ok=True)
+
+scenario_label = SCENARIO.lstrip("-") if SCENARIO else "original"
+
+rech_da = inverse.recharge
+rech = np.asarray(rech_da).ravel()
+rech = rech[np.isfinite(rech)]
+
+fig, (ax0, ax1) = plt.subplots(ncols=2, figsize=(15, 6))
+
+ax0.hist(rech, bins=60, edgecolor="black", alpha=0.8)
+ax0.axvline(np.mean(rech),   color="red",    linestyle="--", label=f"mean = {np.mean(rech):.2e}")
+ax0.axvline(np.median(rech), color="orange", linestyle="--", label=f"median = {np.median(rech):.2e}")
+ax0.axvline(RECHARGE,        color="green",  linestyle=":",  label=f"input = {RECHARGE:.2e}")
+ax0.set_xlabel("Fitted recharge (m/day)")
+ax0.set_ylabel("Number of cells")
+ax0.set_title("Distribution of fitted recharge")
+ax0.legend()
+
+vmax = np.nanmax(np.abs(rech))
+rech_da.plot.imshow(
+    ax=ax1, cmap="RdBu_r", vmin=-vmax, vmax=vmax,
+    cbar_kwargs={"label": "Fitted recharge (m/day)"}, add_labels=True,
+)
+ax1.set_aspect("equal")
+ax1.set_title("Spatial distribution of fitted recharge")
+
+plt.suptitle(f"kD = {TRANSMISSIVITY:.0f}, reg_w = {REG_WEIGHT}, conductance = {scenario_label}", y=1.02)
+plt.tight_layout()
+plt.savefig(OUTDIR / f"recharge_kD{int(TRANSMISSIVITY)}_reg{REG_WEIGHT}_{scenario_label}_SEED{SEED}.png",
+            dpi=200, bbox_inches="tight")
+plt.show()
+# %%
 ####============ FOR LOOP FINDING OPTIMUM KD VALUE =============######
 
 kD_values = np.linspace(1000, 10000, 20)
@@ -221,12 +274,15 @@ for kD in kD_values:
     error = inversehead - modelhead
     errors.append(abs(error).mean().values)
 
+#%%
 # Linear plot
 plt.figure(figsize=(8, 6))
 plt.plot(kD_values, errors, marker=".")
 plt.xlabel("kD (m²/day)")
 plt.ylabel("Mean absolute error (m)")
-plt.title("Error vs Transmissivity")
+plt.title(f"Error vs Transmissivity - {scenario_label}")
+plt.savefig(OUTDIR / f"LinearPlot_kD{int(TRANSMISSIVITY)}_reg{REG_WEIGHT}_{scenario_label}_SEED{SEED}.png",
+            dpi=200, bbox_inches="tight")
 plt.show()
 
 # Log plot
@@ -236,34 +292,37 @@ plt.xscale("log")
 plt.yscale("log")
 plt.xlabel("Transmissivity (m²/d)")
 plt.ylabel("Mean absolute error (m)")
-plt.title("Error vs Transmissivity (log-log)")
+plt.title(f"Error vs Transmissivity (log-log) - {scenario_label}")
+plt.savefig(OUTDIR / f"LogPLot_kD{int(TRANSMISSIVITY)}_reg{REG_WEIGHT}_{scenario_label}_SEED{SEED}.png",
+            dpi=200, bbox_inches="tight")
 plt.show()
 
 # %%
+##===============LARGELY REDUNDANT DUE TO ADDITION OF HISTOGRAM==========##
 # Save ranked kD values (best-fit first) with run parameters
-scenario_label = SCENARIO if SCENARIO else "original"
+# scenario_label = SCENARIO if SCENARIO else "original"
 
-# pair each kD with its error, sort ascending by error
-ranked = sorted(zip(kD_values, errors), key=lambda pair: pair[1])
+# # pair each kD with its error, sort ascending by error
+# ranked = sorted(zip(kD_values, errors), key=lambda pair: pair[1])
 
-with open("ranked_kD.txt", "a") as f:
-    f.write(
-        f"# scenario={scenario_label}, SEED={SEED}, REG_WEIGHT={REG_WEIGHT}, "
-        f"N_REPEATS={N_REPEATS if 'N_REPEATS' in dir() else 'NA'}, "
-        f"kD grid {kD_values.min():.0f}-{kD_values.max():.0f}, {len(kD_values)} pts\n"
-    )
-    for rank, (kd, err) in enumerate(ranked[:5], start=1):
-        f.write(f"rank {rank:2d}: kD={kd:8.1f}, error={err:.6f}\n")
-    f.write("\n")   # blank line between runs
+# with open("ranked_kD.txt", "a") as f:
+#     f.write(
+#         f"# scenario={scenario_label}, SEED={SEED}, REG_WEIGHT={REG_WEIGHT}, "
+#         f"N_REPEATS={N_REPEATS if 'N_REPEATS' in dir() else 'NA'}, "
+#         f"kD grid {kD_values.min():.0f}-{kD_values.max():.0f}, {len(kD_values)} pts\n"
+#     )
+#     for rank, (kd, err) in enumerate(ranked[:5], start=1):
+#         f.write(f"rank {rank:2d}: kD={kd:8.1f}, error={err:.6f}\n")
+#     f.write("\n")   # blank line between runs
 
-print("saved ranking:", scenario_label)
+# print("saved ranking:", scenario_label)
 
 # %%
 
 min_error_index = np.argmin(errors)
 min_kD = kD_values[min_error_index]
 min_error = errors[min_error_index]
-print(f"Optimal kD: {min_kD:.2f} m²/day, with mean error: {min_error:.4f} m")
+print(f"[{scenario_label}] Optimal kD: {min_kD:.2f} m²/day, with mean error: {min_error:.4f} m")
 
 sorted_indices_kD = np.argsort(errors)
 top5_indices_kD = sorted_indices_kD[:5]
@@ -271,22 +330,8 @@ top5_kD = kD_values[top5_indices_kD]
 top5_errors_kD = np.array(errors)[top5_indices_kD]
 
 for i in range(5):
-    print(f"Rank {i+1}: kD = {top5_kD[i]:.2f}, error = {top5_errors_kD[i]:.4f} m")
+    print(f"[{scenario_label}] Rank {i+1}: kD = {top5_kD[i]:.2f}, error = {top5_errors_kD[i]:.4f} m")
 
-# %%
-# Save run parameters + fitted recharge stats
-scenario_label = SCENARIO if SCENARIO else "original"
 
-with open("recharge_per_scenario.txt", "a") as f:
-    f.write(
-        f"scenario={scenario_label}, "
-        f"SEED={SEED}, "
-        f"REG_WEIGHT={REG_WEIGHT}, "
-        f"TRANSMISSIVITY={TRANSMISSIVITY}, "
-        f"recharge_mean={float(inverse.recharge.mean()):.6e}, "
-        f"recharge_median={float(np.median(np.asarray(inverse.recharge))):.6e}\n"
-    )
-
-print("saved:", scenario_label)
 
 # %%

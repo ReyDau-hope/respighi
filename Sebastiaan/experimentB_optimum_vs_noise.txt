@@ -30,10 +30,6 @@ sigma_cm=50, opt_kD=35000.0, error=0.5747
 sigma_cm=10, opt_kD=1000.0, error=0.4055
 sigma_cm=20, opt_kD=1000.0, error=0.4086
 sigma_cm=50, opt_kD=1000.0, error=0.4283
-# SEED=12345, REG_WEIGHT=1000, N_REPEATS=5, kD grid 1000-10000
-sigma_cm=10, opt_kD=1947.4, error=0.2816
-sigma_cm=20, opt_kD=1947.4, error=0.2931
-sigma_cm=50, opt_kD=2894.7, error=0.3482
 # SEED=12345, REG_WEIGHT=1000, N_REPEATS=5, kD grid 1000-45000
 sigma_cm=10, opt_kD=3315.8, error=0.2895
 sigma_cm=20, opt_kD=3315.8, error=0.2993
@@ -42,23 +38,24 @@ sigma_cm=50, opt_kD=3315.8, error=0.3494
 sigma_cm=10, opt_kD=5631.6, error=0.2819
 sigma_cm=20, opt_kD=5631.6, error=0.3121
 sigma_cm=50, opt_kD=12578.9, error=0.4166
-# SEED=12345, REG_WEIGHT=100, N_REPEATS=2, kD grid 1000-45000
-sigma_cm=10, opt_kD=3315.8, error=0.2775
-sigma_cm=20, opt_kD=5631.6, error=0.3035
-sigma_cm=50, opt_kD=10263.2, error=0.3974
-# SEED=12345, REG_WEIGHT=10, N_REPEATS=3, kD grid 1000-45000
-sigma_cm=10, opt_kD=5631.6, error=0.3681
-sigma_cm=20, opt_kD=45000.0, error=0.4008
-sigma_cm=50, opt_kD=45000.0, error=0.5225
 # SEED=12345, REG_WEIGHT=10, N_REPEATS=5, kD grid 1000-45000
 sigma_cm=10, opt_kD=38052.6, error=0.3793
 sigma_cm=20, opt_kD=45000.0, error=0.4141
 sigma_cm=50, opt_kD=45000.0, error=0.5564
+# SEED=12345, REG_WEIGHT=10, N_REPEATS=5, kD grid 1000-10000
+sigma_cm=10, opt_kD=4315.8, error=0.3829
+sigma_cm=20, opt_kD=10000.0, error=0.4521
+sigma_cm=50, opt_kD=10000.0, error=0.7175
 # SEED=12345, REG_WEIGHT=100, N_REPEATS=5, kD grid 1000-10000
 sigma_cm=10, opt_kD=4315.8, error=0.2804
 sigma_cm=20, opt_kD=5736.8, error=0.3121
 sigma_cm=50, opt_kD=10000.0, error=0.4191
+# SEED=12345, REG_WEIGHT=1000, N_REPEATS=5, kD grid 1000-10000
+sigma_cm=10, opt_kD=1947.4, error=0.2816
+sigma_cm=20, opt_kD=1947.4, error=0.2931
+sigma_cm=50, opt_kD=2894.7, error=0.3482
 # SEED=12345, REG_WEIGHT=10000, N_REPEATS=5, kD grid 1000-10000
 sigma_cm=10, opt_kD=1000.0, error=0.4055
 sigma_cm=20, opt_kD=1000.0, error=0.4086
 sigma_cm=50, opt_kD=1000.0, error=0.4283
+
