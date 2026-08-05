@@ -24,7 +24,7 @@ YMAX = 370_000.0
 #Define parameters
 N_PIEZOMETERS = 200
 TRANSMISSIVITY = 4000.00
-RECHARGE = 0.0001
+RECHARGE = 0.001
 REG_WEIGHT = 10
 SEED = 12345
 
@@ -34,7 +34,7 @@ def slice_dataset(ds):
 
 SCENARIO = ""   # "" for original, "-cond0.5", "-cond2", "-cond3"
 
-BASE = "../../case/ibrahym/ibrahym-"
+BASE = "../case/ibrahym/ibrahym-"
 
 head = xr.open_dataset(f"{BASE}head-l1-100m.nc")["head"]
 modelhead = slice_dataset(head.isel(time=-1))
@@ -74,3 +74,5 @@ Cnz = C.where(C > 0)
 print("median of nonzero:", float(Cnz.median()))
 
 
+
+# %%

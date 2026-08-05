@@ -25,8 +25,8 @@ YMAX = 370_000.0
 #Define parameters
 N_PIEZOMETERS = 200
 TRANSMISSIVITY = 1000.00
-RECHARGE = 0.0001
-REG_WEIGHT = 10000
+RECHARGE = 0.001
+REG_WEIGHT = 10
 SEED = 12345
 
 
@@ -141,6 +141,12 @@ target = rsp.CellSampling(x, y, headvalues, grid)
 # %%
 ####==== EXPERIMENT B: optimum kD re-found at each noise level ====####
 # For each sigma, sweep kD, find the kD that minimises error.
+from pathlib import Path
+
+OUTDIR = Path(__file__).resolve().parent.parent / "Findings"
+OUTDIR.mkdir(parents=True, exist_ok=True)
+
+scenario_label = SCENARIO.lstrip("-") if SCENARIO else "original"
 
 sigma_cm  = np.array([10, 20, 50])
 sigma_m   = sigma_cm / 100.0
@@ -205,6 +211,8 @@ plt.xlabel("kD (m²/day)")
 plt.ylabel("Mean absolute error (m)")
 plt.title("Error vs kD at increasing measurement noise")
 plt.legend()
+plt.savefig(OUTDIR / f"NoiseTest_{int(TRANSMISSIVITY)}_reg{REG_WEIGHT}_{scenario_label}_SEED{SEED}.png",
+            dpi=200, bbox_inches="tight")
 plt.show()
 
 # %%
@@ -216,6 +224,8 @@ plt.plot(opt_sigma, opt_kD, marker="o")
 plt.xlabel("Measurement noise σ (cm)")
 plt.ylabel("Optimum kD (m²/day)")
 plt.title("Does the optimum kD shift with measurement noise?")
+plt.savefig(OUTDIR / f"kD(function of noise)_{int(TRANSMISSIVITY)}_reg{REG_WEIGHT}_{scenario_label}_SEED{SEED}.png",
+            dpi=200, bbox_inches="tight")
 plt.show()
 
 # %%
