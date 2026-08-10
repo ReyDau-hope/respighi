@@ -9,6 +9,7 @@ from respighi.groundwaterflow import (
     River,
 )
 from respighi.inverse import InverseProblem
+from respighi.inverse_minres import InverseProblemMINRES
 from respighi.layer_reduction import (
     effective_transmissivity,
     two_layer_effective_transmisivity,
@@ -19,6 +20,11 @@ from respighi.target import (
     GridSampling,
     InterpolatedSampling,
     ModelTarget,
+)
+from respighi.tikhonov import (
+    MaternSemivariogram,
+    MinimumCurvature,
+    UnscaledMinimumCurvature,
 )
 
 __all__ = (
@@ -33,7 +39,11 @@ __all__ = (
     "InterpolatedSampling",
     "ModelTarget",
     "CompositeTarget",
+    "MaternSemivariogram",
+    "MinimumCurvature",
+    "UnscaledMinimumCurvature",
     "InverseProblem",
+    "InverseProblemMINRES",
     "effective_transmissivity",
     "two_layer_effective_transmisivity",
 )
