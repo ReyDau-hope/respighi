@@ -1,0 +1,6 @@
+scenario=original, SEED=12345, REG_WEIGHT=10, TRANSMISSIVITY=2200.0, recharge_mean=-1.753948e-04, recharge_median=1.412654e-04
+scenario=original, SEED=12345, REG_WEIGHT=10, TRANSMISSIVITY=2200.0, recharge_mean=-1.753948e-04, recharge_median=1.412654e-04
+scenario=original, SEED=12345, REG_WEIGHT=100, TRANSMISSIVITY=2200.0, recharge_mean=4.613346e-04, recharge_median=4.625859e-04
+scenario=original, SEED=12345, REG_WEIGHT=1000, TRANSMISSIVITY=2200.0, recharge_mean=8.001782e-04, recharge_median=3.787992e-04
+scenario=original, SEED=12345, REG_WEIGHT=10000, TRANSMISSIVITY=2200.0, recharge_mean=6.670519e-04, recharge_median=3.395276e-04
+scenario=original, SEED=12345, REG_WEIGHT=UnscaledMinimumCurvature(weight=1000.0), TRANSMISSIVITY=2200.0, recharge_mean=8.001779e-04, recharge_median=3.787989e-04

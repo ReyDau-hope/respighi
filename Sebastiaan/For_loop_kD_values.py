@@ -26,7 +26,8 @@ YMAX = 370_000.0
 N_PIEZOMETERS = 200
 TRANSMISSIVITY = 2200.00
 RECHARGE = 0.001
-REG_WEIGHT = 10
+PIEZOMETER_SIGMA = 0.1
+REG_WEIGHT = rsp.UnscaledMinimumCurvature(1000.0)
 SEED = 12345
 
 
@@ -37,7 +38,7 @@ def slice_dataset(ds):
 
 SCENARIO = ""   # "" for original, "-cond0.5", "-cond2", "-cond3"
 
-BASE = "../../case/ibrahym/ibrahym-"
+BASE = "../case/ibrahym/ibrahym-"
 
 head = xr.open_dataset(f"{BASE}head-l1-100m.nc")["head"]
 modelhead = slice_dataset(head.isel(time=-1))
