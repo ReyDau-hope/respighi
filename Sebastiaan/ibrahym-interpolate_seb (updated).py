@@ -24,9 +24,9 @@ YMAX = 370_000.0
 
 #Define parameters
 N_PIEZOMETERS = 200
-TRANSMISSIVITY = 4000.00
+TRANSMISSIVITY = 2000.00
 RECHARGE = 0.001
-REG_WEIGHT = 10
+REG_WEIGHT = rsp.UnscaledMinimumCurvature(4000.0)
 SEED = 12345
 
 
@@ -37,7 +37,7 @@ def slice_dataset(ds):
 
 SCENARIO = ""   # "" for original, "-cond0.5", "-cond2", "-cond3"
 
-BASE = "../../case/ibrahym/ibrahym-"
+BASE = "../case/ibrahym/ibrahym-"
 
 head = xr.open_dataset(f"{BASE}head-l1-100m.nc")["head"]
 modelhead = slice_dataset(head.isel(time=-1))
@@ -88,18 +88,18 @@ hfb = rsp.HorizontalFlowBarrier.from_geodataframe(
     max_snap_distance=10.0,
 ) #can be skipped
 
-# %%
-BASE = "../../case/ibrahym/ibrahym-"
+# # %%
+# BASE = "../../case/ibrahym/ibrahym-"
 
-for name in ["rivers", "largerivers", "drains", "tiledrainage"]:
-    orig = xr.open_dataset(f"{BASE}{name}-100m.nc")["conductance"]
-    print(f"\n{name}")
-    print(f"  original : min {float(orig.min()):.4f}  max {float(orig.max()):.4f}  mean {float(orig.mean()):.4f}")
-    for factor in ["0.5", "2", "3"]:
-        scaled = xr.open_dataset(f"{BASE}{name}-100m-cond{factor}.nc")["conductance"]
-        ratio = float(scaled.mean()) / float(orig.mean())
-        print(f"  x{factor:4s}    : min {float(scaled.min()):.4f}  max {float(scaled.max()):.4f}  "
-              f"mean {float(scaled.mean()):.4f}  (ratio {ratio:.4f})")
+# for name in ["rivers", "largerivers", "drains", "tiledrainage"]:
+#     orig = xr.open_dataset(f"{BASE}{name}-100m.nc")["conductance"]
+#     print(f"\n{name}")
+#     print(f"  original : min {float(orig.min()):.4f}  max {float(orig.max()):.4f}  mean {float(orig.mean()):.4f}")
+#     for factor in ["0.5", "2", "3"]:
+#         scaled = xr.open_dataset(f"{BASE}{name}-100m-cond{factor}.nc")["conductance"]
+#         ratio = float(scaled.mean()) / float(orig.mean())
+#         print(f"  x{factor:4s}    : min {float(scaled.min()):.4f}  max {float(scaled.max()):.4f}  "
+#               f"mean {float(scaled.mean()):.4f}  (ratio {ratio:.4f})")
 
 # %%
 
@@ -171,7 +171,7 @@ target = rsp.CellSampling(x, y, headvalues, grid)
 inverse = rsp.InverseProblem(
     groundwatermodel=gwf,
     target=target,
-    regularization_weight=REG_WEIGHT,
+    regularization=REG_WEIGHT,
     maxiter=100,
     relax=0.0,
 )
