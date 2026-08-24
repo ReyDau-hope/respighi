@@ -1,14 +1,18 @@
 import platform
+import tempfile
 import warnings
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
 import xarray as xr
 from scipy import sparse
 
+from respighi.constants import BoolArray
 from respighi.groundwaterflow import GroundwaterModel
-from respighi.linearsolvers.direct import make_direct_solver
+from respighi.linearsolvers.direct import MumpsWrapper, make_direct_solver
 from respighi.linearsolvers.solvertypes import MatrixType
+from respighi.output import zarr_writer
 from respighi.target import FittingTarget
 
 
@@ -55,7 +59,7 @@ class InverseProblem:
     maxdh : float, optional
         Convergence tolerance for non-linear head updates (default: 1e-4)
     relax : float, optional
-        Relaxation factor for Picard iteration (default: 0.0)
+        Relaxation factor (0-1]. A value of one indicates no relaxation.
     solver_backend: str, optional: "pardiso", "mumps", "scipy".
         Which linear solver to use.
     explicit_residuals: bool, optional
@@ -74,7 +78,7 @@ class InverseProblem:
         regularization: float,
         maxiter: int = 30,
         maxdh=1e-4,
-        relax=0.0,
+        relax=1.0,
         solver_backend: Literal["pardiso", "mumps", "scipy"] | None = None,
         explicit_residuals: bool = False,
         symmetric: bool = True,
@@ -95,7 +99,7 @@ class InverseProblem:
         self.maxiter = maxiter
         self.maxdh = maxdh
         self.relax = relax
-        self.K = self._build_matrix(regularization)
+        self.K, self.Pt, self.matrix_type = self._build_matrix(regularization)
         self.rhs = self._build_rhs_vector()
         self.x = np.zeros_like(self.rhs)
         self._x_old = np.zeros_like(self.rhs)
@@ -103,20 +107,19 @@ class InverseProblem:
         self._head_iter = np.zeros(self.n)
         self._head_update = np.zeros(self.n)
         self.linearsolver = None
-        self.Pt = None
 
         # Extract diagonal indices for efficient Picard updates
         self._A_diag_indices = self._extract_diagonal_indices()
         self.K.data[self._A_diag_indices] = self.gwf.hcof
 
         if explicit_residuals:
-            obs_start = self.n + self.layer_n + 1
+            obs_start = self.n + self.layer_n
             n_obs_rhs = len(self.target.d)
             flow_start = obs_start + n_obs_rhs + self.layer_n
         else:
             obs_start = 0
             n_obs_rhs = self.n
-            flow_start = self.n + self.layer_n + 1
+            flow_start = self.n + self.layer_n
 
         self.rhs_obs_slice = slice(obs_start, obs_start + n_obs_rhs)
         self.rhs_flow_slice = slice(flow_start, flow_start + self.n)
@@ -140,6 +143,7 @@ class InverseProblem:
         A.setdiag(np.inf)
 
         P = self.target.P
+        Pt = P.T
         if P.shape[1] < self.n:
             padding = sparse.csr_matrix((P.shape[0], self.n - P.shape[1]))
             P = sparse.hstack([P, padding])
@@ -151,50 +155,33 @@ class InverseProblem:
             ny=ny, nx=nx, dx=np.sqrt(self.gwf.area)
         )
 
-        # Recharge mapper
         rows = np.arange(self.layer_n)
         area = np.full(self.layer_n, self.gwf.area)
         Q = sparse.coo_matrix(
             (area, (rows, rows)), shape=(self.n, self.layer_n)
         ).tocsr()
 
-        # Mean recharge term
-        mean_weights = np.full(
-            self.layer_n,
-            1.0 / self.layer_n,
-        )
-        c = sparse.csr_array(mean_weights[:, None])
-        q = Q @ np.ones(self.layer_n)
-
         Z_n = sparse.csr_array((self.n, self.n))
-        Z_1 = sparse.csr_array((1, 1))
         if self.explicit_residuals:
             n_obs = P.shape[0]
             Z_layer = sparse.csr_array((self.layer_n, self.layer_n))
             I_e = sparse.eye_array(n_obs, format="csr")
             I_s = sparse.eye_array(self.layer_n, format="csr")
-            # Zero diagonal blocks are needed: without them block_array
-            # cannot infer the h and r block-column widths.
             blocks = [
-                #           h        r        m      e       s       lambda   eta
-                [Z_n, None, None, P.T, None, A.T, None],
-                [None, Z_layer, None, None, L.T, -Q.T, c],
-                [None, None, Z_1, None, None, -q.T, None],
-                [None, None, None, -I_e, None, None, None],
-                [None, None, None, None, -I_s, None, None],
-                [None, None, None, None, None, Z_n, None],
-                [None, None, None, None, None, None, Z_1],
+                # Zero diagonal blocks are needed: without them block_array
+                # cannot infer the h and r block-column widths.
+                [Z_n, None, Pt, None, A.T],
+                [None, Z_layer, None, L.T, -Q.T],
+                [None, None, -I_e, None, None],
+                [None, None, None, -I_s, None],
+                [None, None, None, None, Z_n],
             ]
         else:
             blocks = [
-                #             h          r        m      lambda   eta
-                [P.T @ P, None, None, A.T, None],
-                [None, L.T @ L, None, -Q.T, c],
-                [None, None, Z_1, -q.T, None],
-                [None, None, None, Z_n, None],
-                [None, None, None, None, Z_1],
+                [Pt @ P, None, A.T],
+                [None, L.T @ L, -Q.T],
+                [None, None, Z_n],
             ]
-            self.Pt = P.T
 
         Kupper = sparse.triu(sparse.block_array(blocks))
         if self.symmetric:
@@ -202,13 +189,15 @@ class InverseProblem:
             # including structurally zero diagonal entries.
             K = Kupper
             K.setdiag(Kupper.diagonal())
+            matrix_type = MatrixType.SYMMETRIC_INDEFINITE
         else:
             # Reconstruct the complete symmetric matrix without
             # duplicating the diagonal.
             K = Kupper + sparse.triu(Kupper, k=1).T
+            matrix_type = MatrixType.NONSYMMETRIC
 
         K = K.tocsr()
-        return K
+        return K, Pt, matrix_type
 
     def _build_rhs_vector(self) -> np.ndarray:
         """
@@ -222,12 +211,10 @@ class InverseProblem:
             rhs = np.concatenate(
                 [
                     np.zeros(self.n),  # stationarity h
-                    np.zeros(self.layer_n),  # stationarity recharge anomaly
-                    np.zeros(1),  # stationarity mean recharge
+                    np.zeros(self.layer_n),  # stationarity r
                     self.target.d,  # observation constraint
                     np.zeros(self.layer_n),  # regularization constraint
-                    self.gwf.rhs,  # groundwater flow constraint
-                    np.zeros(1),  # zero-mean anomaly constraint
+                    self.gwf.rhs,  # flow constraint
                 ]
             )
         else:
@@ -235,9 +222,7 @@ class InverseProblem:
                 [
                     self.Pt @ self.target.d,  # h equation
                     np.zeros(self.layer_n),  # r equation
-                    np.zeros(1),
                     self.gwf.rhs,  # flow constraint
-                    np.zeros(1),
                 ]
             )
         return rhs
@@ -283,26 +268,20 @@ class InverseProblem:
         self.rhs[self.rhs_flow_slice] = self.gwf.rhs
         return
 
-    def formulate(self, dt=0.0):
+    def formulate(self, dt=None):
         """
         Formulate the system of equations, call PARDISO's analysis (phase 11)
         and numerical factorization (phase 22).
         """
         self._formulate_gwf(dt=dt)
-
-        if self.symmetric:
-            matrix_type = MatrixType.SYMMETRIC_INDEFINITE
-        else:
-            matrix_type = MatrixType.NONSYMMETRIC
-
         self.linearsolver = make_direct_solver(
-            self.solver_backend, self.K, self.rhs, self.x, matrix_type=matrix_type
+            self.solver_backend, self.K, self.rhs, self.x, matrix_type=self.matrix_type
         )
         # Analysis is the most costly phase.
         self.linearsolver.analyze()
         self.linearsolver.factorize()
 
-    def reformulate(self, dt=0.0):
+    def reformulate(self, dt=None):
         """
         Formulate the system of equations, call PARDISO's numerical
         factorization; unlike ``.formulate``, this does not call the expensive
@@ -312,25 +291,6 @@ class InverseProblem:
         self._formulate_gwf(dt=dt)
         self.linearsolver.factorize()
 
-    def update_observations(self, d):
-        """
-        Replace the observation vector in the RHS.
-
-        Useful for transient runs where observations change between time steps
-        without requiring a full rebuild of the system.
-
-        Parameters
-        ----------
-        d:
-            New observation vector. Must have the same shape as the original.
-        """
-        if d.shape != self.target.d.shape:
-            raise ValueError("Observation size changed: rebuild instead.")
-        if self.explicit_residuals:
-            self.rhs[self.rhs_obs_slice] = d
-        else:
-            self.rhs[self.rhs_obs_slice] = self.Pt @ d
-
     def linear_solve(self):
         """Solve the linear system for ``[h, r, λ]^T``."""
         if self.linearsolver is None:
@@ -338,7 +298,7 @@ class InverseProblem:
         self.linearsolver.solve()
         return
 
-    def nonlinear_solve(self):
+    def nonlinear_solve(self, dt=None):
         """
         Solve the nonlinear system for ``[h, r, λ]^T`` using Picard iteration.
 
@@ -367,7 +327,9 @@ class InverseProblem:
         if self.linearsolver is None:
             raise RuntimeError("Must call formulate() before solve")
 
+        maxdh = np.inf
         for i in range(self.maxiter):
+            self.reformulate(dt=dt)
             np.copyto(dst=self._x_old, src=self.x)
             np.copyto(dst=self._head_iter, src=self._head)
             self.linear_solve()
@@ -375,10 +337,11 @@ class InverseProblem:
             np.subtract(self.x, self._x_old, out=self._x_update)
             maxdh = np.linalg.norm(self._head_update, ord=np.inf)
             print(maxdh)
-            if maxdh < self.maxdh:
+            if (i > 0) and (maxdh < self.maxdh):
                 return True, i + 1
-            self.x -= self.relax * self._x_update
-            self.reformulate()
+            if self.relax != 1.0:
+                self._x_update *= self.relax
+                np.add(self._x_old, self._x_update, out=self.x)
 
         warnings.warn(
             f"Nonlinear solver did not converge after {self.maxiter} iterations. "
@@ -386,72 +349,84 @@ class InverseProblem:
         )
         return False, self.maxiter
 
-    def run(self, dts, targets, callback=None):
+    def advance(self, time_index: int):
+        self.gwf.advance(time_index)
+        self.target.advance(time_index)
+        # Now copy over the observations from the target to the rhs.
+        if self.explicit_residuals:
+            self.rhs[self.rhs_obs_slice] = self.target.d
+        else:
+            self.rhs[self.rhs_obs_slice] = self.Pt @ self.target.d
+
+    def run(
+        self,
+        time,
+        path=None,
+        steady_state: bool | BoolArray = True,
+    ) -> xr.Dataset:
         """
         Run a transient or batched inverse solve over a sequence of time steps.
 
-        Performs the expensive PARDISO analysis once, then iterates over time
+        Re-uses the analysis phase of the linear solver, and iterates over time
         steps, updating observations and refactorizing at each step.
-
-        The optional ``callback`` is invoked before each step, allowing,
-        boundary conditions, or other model state to be updated in-place.
 
         Parameters
         ----------
-        dts:
-            Sequence of time step sizes.
-        targets:
-            Sequence of FittingTarget objects, one per time step.
-        callback:
-            Optional callable with signature ``callback(problem, i, dt)``,
-            where ``problem`` is the ``InverseProblem`` instance, ``i`` is
-            the zero-based step index, and ``dt`` is the current time step
-            size. Called at the start of each step, before refactorization.
+        time:
+        path:
+        steady_state: bool or array of bools
 
         Returns
         -------
-        list of np.ndarray
-            Flat head arrays (length ``n``) after each time step.
+        xarray.Dataset
         """
+        tmp = None
+        if path is None:
+            tmp = tempfile.TemporaryDirectory(prefix="respighi-")
+            path = Path(tmp.name) / "inverse-results.zarr"
+
+        nlayer, ny, nx = self.gwf.transmissivity.shape
+        dts = time.diff().days[1:]
+        steady = np.broadcast_to(steady_state, len(dts))
+        self.gwf.bind_time(time)
+        self.target.bind_time(time)
         np.copyto(dst=self._head, src=self.gwf.initial)
-        self.formulate()
-        out = []
-        for i, (dt, target) in enumerate(zip(dts, targets)):
-            if callback is not None:
-                callback(self, i, dt)
-            self.update_observations(target.d)
-            # Copy head to gwf._head_old for storage term formulation.
-            np.copyto(dst=self.gwf._head_old, src=self._head)
-            self.reformulate(dt=dt)
-            self.nonlinear_solve()
-            out.append(self._head.copy())
-        return out
+        self.formulate(dt=None)
+
+        with zarr_writer(
+            path=path, time=time[:-1], dims=("layer", "y", "x"), coords=self.gwf._coords
+        ) as group:
+            zarr_head = group["head"]
+            zarr_recharge = group["recharge"]
+            zarr_converged = group["converged"]
+            zarr_iterations = group["iterations"]
+            for i, dt in enumerate(dts):
+                self.advance(i)
+                zarr_converged[i], zarr_iterations[i] = self.nonlinear_solve(
+                    dt=None if steady[i] else dt
+                )
+                zarr_head[i] = self._head.reshape((nlayer, ny, nx))
+                zarr_recharge[i] = self._recharge.reshape((ny, nx))
+
+        ds = xr.open_zarr(path)
+        if tmp is not None:
+            ds.set_close(tmp.cleanup)
+        return ds
 
     @property
     def _head(self):
+        """Current head estimate; the first ``n`` entries of the solution vector."""
         return self.x[: self.n]
 
     @property
-    def _recharge_anomaly(self):
+    def _recharge(self):
+        """Current recharge estimate; entries ``n`` to ``n + layer_n`` of the solution vector."""
         return self.x[self.n : self.n + self.layer_n]
 
     @property
-    def _mean_recharge(self):
-        return self.x[self.n + self.layer_n]
-
-    @property
-    def _recharge(self):
-        anomaly = self.x[self.n : self.n + self.layer_n]
-        mean = self.x[self.n + self.layer_n]
-        return anomaly + mean
-
-    @property
     def _lagrangian(self):
-        return self.x[-self.n - 1 : -1]
-
-    @property
-    def _mean_lagrangian(self):
-        return self.x[-1]
+        """Current Lagrange multipliers; the final ``layer_n`` entries of the solution vector."""
+        return self.x[-self.n :]
 
     @property
     def head(self):
@@ -483,42 +458,102 @@ class InverseProblem:
             name="lagrangian",
         )
 
-    def observation_influence_functions(
-        self,
-        batch_size: int | None = None,
-    ):
-        """
-        Estimate head variance contribution from observation uncertainty.
+    def observation_mapping_matrix(self) -> np.ndarray:
+        r"""
+        Compute the local linear mapping from observations to reconstructed heads.
 
-        For each observation i, computes the influence function
+        For the non-explicit residual formulation,
 
-            phi_i = d h / d d_i
+        .. math::
 
-        by solving the already-factorized system with a unit perturbation in
-        the observation RHS row. The variance contribution is
+            K
+            \begin{bmatrix}
+                h \\ r \\ \lambda
+            \end{bmatrix}
+            =
+            \begin{bmatrix}
+                P^T d \\ 0 \\ b_{\mathrm{bc}}
+            \end{bmatrix}.
 
-            v_h = sum_i sigma_i^2 * phi_i^2
+        Holding the KKT matrix fixed at the current, typically converged, Picard
+        state gives
 
+        .. math::
+
+            \delta h = W \, \delta d.
+
+        Column ``i`` of ``W`` is therefore the reconstructed head response to a
+        unit perturbation of observation ``i``.
+
+        Returns
+        -------
+        W : np.ndarray of shape (n_head, n_obs)
+            Local linear mapping from observation perturbations to head
+            perturbations.
         """
         if self.linearsolver is None:
-            raise RuntimeError("Must call formulate() before influence estimation")
+            raise RuntimeError(
+                "Must call formulate() before computing the observation mapping"
+            )
 
-        n_obs = len(self.target.d)
+        if self.explicit_residuals:
+            raise RuntimeError(
+                "observation_mapping_matrix() assumes the non-explicit "
+                "residual formulation"
+            )
+
+        n_obs = self.Pt.shape[1]
         N = len(self.rhs)
-        obs_rows = np.arange(self.rhs_obs_slice.start, self.rhs_obs_slice.stop)
-        if batch_size is None:
-            batch_size = n_obs
+        B = np.zeros((N, n_obs), dtype=float)
+        # The observation-dependent part of the KKT RHS is P.T @ d.
+        B[: self.n, :] = self.Pt.toarray()
+        X = self.linearsolver.solve_multi(B)
+        # The first block of the KKT solution is h.
+        return X[: self.n, :]
 
-        Phi = np.zeros((self.n, n_obs))
-        for start in range(0, n_obs, batch_size):
-            stop = min(start + batch_size, n_obs)
-            m = stop - start
-            B = np.zeros((N, m))
-            B[obs_rows[start:stop], np.arange(m)] = 1.0
-            X = self.linearsolver.solve_multi(B)
-            Phi[:, start:stop] = X[: self.n, :]
+    def observation_surrogate(self) -> xr.Dataset:
+        r"""
+        Build the local linear observation-to-head surrogate.
 
-        return Phi
+        The surrogate is linearized around the current head estimate and
+        observation vector:
+
+        .. math::
+
+            h(d) \approx h_{ref} + W (d - d_{ref}).
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset containing:
+
+            - ``head_reference``: reference head field, with dimensions
+                ``(layer, y, x)``.
+            - ``observation_reference``: reference observation values, with
+                dimension ``(observation,)``.
+            - ``W``: observation-to-head mapping, with dimensions
+                ``(layer, y, x, observation)``.
+        """
+        W = self.observation_mapping_matrix()
+        n_obs = len(self.target.d)
+        head_shape = self.gwf.transmissivity.shape
+        return xr.Dataset(
+            data_vars={
+                "head_reference": self.head,
+                "observation_reference": (
+                    "observation",
+                    np.asarray(self.target.d).copy(),
+                ),
+                "weights": (
+                    ("layer", "y", "x", "observation"),
+                    W.reshape(*head_shape, n_obs),
+                ),
+            },
+            coords={
+                **self.gwf._coords,
+                "observation": np.arange(n_obs),
+            },
+        )
 
     def boundary_influence_functions(self):
         """
@@ -543,67 +578,20 @@ class InverseProblem:
         X = self.linearsolver.solve_multi(B)
         return X[: self.n, :]
 
-    def estimate_variance(self, batch_size: int | None = None):
-        r"""
-        Estimate head variance from observation and boundary uncertainty.
+    def estimate_variance(self):
+        # Only mumps supports inverted entries properly.
+        if not isinstance(self.linearsolver, MumpsWrapper):
+            linearsolver = make_direct_solver(
+                "mumps", self.K, self.rhs, self.x, matrix_type=self.matrix_type
+            )
+            linearsolver.analyze()
+            linearsolver.factorize()
+        else:
+            linearsolver = self.linearsolver
 
-        Combines two sources of uncertainty via first-order linear error
-        propagation through the factorized system:
-
-        - Observation uncertainty: each piezometer contributes a variance
-        proportional to ``target.sigma[i]**2``, weighted by its influence
-        function ``phi_i = dh / dd_i``.
-        - Boundary uncertainty: each head boundary contributes a variance
-        from a spatially coherent shift, weighted by the conductance and
-        ``boundary.sigma`` fields, expressed as ``psi_k = dh / d delta_k``.
-
-        The total variance is:
-
-        .. math::
-
-            \text{Var}(\\mathbf{h}) =
-            \sum_i \sigma_i^2 \, \\boldsymbol{\phi}_i^2
-            + \sum_k \boldsymbol{\psi}_k^2
-
-        where :math:`\sigma_i` is already absorbed into :math:`\boldsymbol{\psi}_k`
-        via the conductance-sigma weighting in
-        :meth:`boundary_influence_functions`.
-
-        Observation and boundary errors are assumed mutually independent, so
-        their variance contributions add. All influence functions are computed
-        via multi-RHS solves reusing the existing PARDISO or MUMPS factorization; no
-        additional factorization is required.
-
-        .. note::
-
-            This is a first-order estimate, linearized around the converged
-            head solution. It captures uncertainty due to observation noise
-            and boundary condition uncertainty, but not structural model error
-            (e.g. transmissivity uncertainty, incorrect boundary placement).
-            The spatial pattern is therefore more reliable than the absolute
-            magnitudes, which depend on the physical calibration of
-            ``target.sigma`` and ``boundary.sigma``.
-
-        Parameters
-        ----------
-        batch_size : int, optional
-            Number of observation influence functions to solve simultaneously.
-            If None, all observations are solved in a single multi-RHS call.
-            Reduce this if memory is a concern for large observation sets.
-
-        Returns
-        -------
-        variance : xr.DataArray of shape (layer, y, x)
-            Pointwise head variance in units of head squared (m²), with the
-            same grid coordinates as the groundwater model.
-        """
-        sigma_obs = self.target.sigma
-        Phi_obs = self.observation_influence_functions(batch_size=batch_size)
-        Phi_bc = self.boundary_influence_functions()
-        var = np.sum((Phi_obs * sigma_obs) ** 2, axis=1)
-        var += np.sum(Phi_bc**2, axis=1)
+        variance = linearsolver.inverse_diagonal(indices=np.arange(self.n))
         return xr.DataArray(
-            data=var.reshape(self.gwf.transmissivity.shape),
+            data=variance.reshape(self.gwf.transmissivity.shape),
             dims=("layer", "y", "x"),
             coords=self.gwf._coords,
             name="variance",
