@@ -7,7 +7,7 @@ cells to compare (default: honest 0.20/0.20 vs over-smoothed 0.20/0.50). The
 question this answers: does the lower-head-MAE cell pay for it with a flatter,
 smeared recharge field? If so, that's the reg-weight degeneracy made visible.
 """
-
+#%%
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -15,7 +15,7 @@ import numpy as np
 import xarray as xr
 
 # ---- point this at your run folder ----
-RUN_DIR = Path("../SavedData")   # e.g. ../SavedData/sigma3x3_20260113_1530
+RUN_DIR = Path("../SavedData/sigma3x3_20260811_1248")   # refer to the dataset/subfolder you want to access
 # If RUN_DIR is the parent, grab the most recent sigma3x3_* subfolder:
 if not any(RUN_DIR.glob("run_*.nc")):
     subs = sorted(RUN_DIR.glob("sigma3x3_*"))
@@ -74,3 +74,5 @@ if __name__ == "__main__":
     # Honest vs over-smoothed at the middle noise level.
     compare(sigma_ext=0.20, sigma_int_a=0.20, sigma_int_b=0.50)
     plt.show()
+
+# %%

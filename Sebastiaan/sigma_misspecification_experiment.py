@@ -24,7 +24,7 @@ noisy data), and saved to netCDF. Diagonal cells (sigma_ext == sigma_int) are th
 Only `build_experiment_inputs()` touches Respighi. Verify the 3 lines flagged
 "<-- VERIFY" against your for-loop's inverse call, then run.
 """
-
+#%%
 from __future__ import annotations
 
 from datetime import datetime
@@ -43,7 +43,7 @@ SIGMA_EXT = [0.10, 0.20, 0.50]          # 10, 20, 50 cm
 # Assumed noise std, metres   (internal / told value, passed to Respighi)
 SIGMA_INT = [0.10, 0.20, 0.50]          # 10, 20, 50 cm
 
-N_REPEATS = 3        # noise realisations averaged per cell (Huite: 2-3 is fine)
+N_REPEATS = 3        # noise realisations averaged per cell
 
 SAVE = True
 SAVE_ROOT = Path("../SavedData")
@@ -51,7 +51,7 @@ SAVE_ROOT = Path("../SavedData")
 # you'd rather keep one flat folder.
 RUN_DIR = SAVE_ROOT / f"sigma3x3_{datetime.now():%Y%m%d_%H%M}"
 
-
+#%%
 # ---------------------------------------------------------------------------
 # ADAPTER  --  the only part that touches Respighi
 # ---------------------------------------------------------------------------
@@ -134,13 +134,14 @@ def build_experiment_inputs():
     ).to_numpy()
 
     # ---- fixed regularization, IDENTICAL for every cell ----
-    # <-- VERIFY: post-rename, how does your for-loop set regularization?
-    #     Scalar path (confirmed to still exist):
-    REG_WEIGHT = 1000.0
-    #     ...or the object path from tikhonov.py, e.g.
-    #        REGULARIZATION = rsp.UnscaledMinimumCurvature(1000.0)
-    #        REGULARIZATION = rsp.MinimumCurvature(roughness_scale=...)
-    #     Whichever it is, define it here so it never varies across the 9 cells.
+    # InverseProblem now takes a regularization OBJECT (with build_tikhonov_operator),
+    # not a scalar. UnscaledMinimumCurvature(weight) is the backwards-compat shim:
+    # its operator is weight * graph_Laplacian == your old regularization_weight=1000,
+    # so this keeps continuity with your earlier sweeps.
+    REGULARIZATION = rsp.UnscaledMinimumCurvature(1000.0)
+    # If it isn't exposed at top level, import it directly:
+    #   from respighi.tikhonov import UnscaledMinimumCurvature
+    #   REGULARIZATION = UnscaledMinimumCurvature(1000.0)
 
     def run_inverse(noisy_piezo_head, sigma_int):
         target = rsp.CellSampling(
@@ -149,15 +150,16 @@ def build_experiment_inputs():
         )
         inverse = rsp.InverseProblem(
             gwf, target,
-            regularization_weight=REG_WEIGHT,   # <-- VERIFY param name post-rename
+            regularization=REGULARIZATION,          # keyword renamed from regularization_weight
             maxiter=100, relax=0.0,
         )
-        inverse.solve()                         # <-- VERIFY: .solve()/.nonlinear_solve()
+        inverse.formulate()
+        inverse.nonlinear_solve()                   # nonlinear (Picard), like the forward
         return inverse
 
     return clean_piezo_head, modelhead, run_inverse
 
-
+#%%
 # ---------------------------------------------------------------------------
 # ENGINE  --  no edits needed below
 # ---------------------------------------------------------------------------
@@ -302,3 +304,4 @@ if __name__ == "__main__":
         plt.show()
     except Exception as exc:
         print(f"(plotting skipped: {exc})")
+# %%

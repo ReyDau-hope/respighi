@@ -22,7 +22,7 @@ free, fine (small-R) structure is strongly suppressed. The weight w sets where
 that cutoff sits. Expressing it via (A, R) is the physical, grid-independent
 reparameterization the Matern objective adopts.
 """
-
+#%%
 import matplotlib.pyplot as plt
 import numpy as np
 

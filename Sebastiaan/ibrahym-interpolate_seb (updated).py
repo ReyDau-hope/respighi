@@ -26,7 +26,7 @@ YMAX = 370_000.0
 N_PIEZOMETERS = 200
 TRANSMISSIVITY = 2000.00
 RECHARGE = 0.001
-REG_WEIGHT = rsp.UnscaledMinimumCurvature(4000.0)
+REG_WEIGHT = rsp.UnscaledMinimumCurvature(100.0)
 SEED = 12345
 
 

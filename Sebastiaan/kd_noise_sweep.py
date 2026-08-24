@@ -16,7 +16,7 @@ SIGMA_INT_FIXED to a number to override with a single fixed assumed noise instea
 
 Only build_experiment_inputs() touches Respighi. RE-POINT `BASE` to your data path.
 """
-
+#%%
 from __future__ import annotations
 
 from datetime import datetime

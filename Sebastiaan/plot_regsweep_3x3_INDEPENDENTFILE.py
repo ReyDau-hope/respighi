@@ -9,7 +9,7 @@ run, resumed run, or two runs merged into one folder by copying reg###### dirs).
 
 Usage: set RUN_DIR to the folder holding the reg###### subdirs, then run.
 """
-
+#%%
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -127,3 +127,4 @@ if __name__ == "__main__":
     plot_grid(regs, ext, intv, M, run_dir)
     plot_convergence(regs, ext, intv, M, run_dir)
     plt.show()
+# %%
