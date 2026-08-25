@@ -14,11 +14,11 @@ from respighi.layer_reduction import (
     effective_transmissivity,
     two_layer_effective_transmisivity,
 )
+from respighi.surrogate import LinearInterpolationSurrogate
 from respighi.target import (
     CellSampling,
     CompositeTarget,
     GridSampling,
-    InterpolatedSampling,
     ModelTarget,
 )
 from respighi.tikhonov import (
@@ -34,9 +34,9 @@ __all__ = (
     "Drainage",
     "River",
     "GroundwaterModel",
+    "LinearInterpolationSurrogate",
     "GridSampling",
     "CellSampling",
-    "InterpolatedSampling",
     "ModelTarget",
     "CompositeTarget",
     "MaternSemivariogram",
