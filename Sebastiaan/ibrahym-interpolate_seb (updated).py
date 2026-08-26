@@ -26,7 +26,7 @@ YMAX = 370_000.0
 N_PIEZOMETERS = 200
 TRANSMISSIVITY = 2000.00
 RECHARGE = 0.001
-REG_WEIGHT = rsp.UnscaledMinimumCurvature(100.0)
+REG_WEIGHT = rsp.UnscaledMinimumCurvature(4000.0)
 SEED = 12345
 
 
@@ -173,7 +173,7 @@ inverse = rsp.InverseProblem(
     target=target,
     regularization=REG_WEIGHT,
     maxiter=100,
-    relax=0.0,
+    relax=1.0,
 )
 
 # %%
