@@ -1,0 +1,11 @@
+kD              : 2000.0 m2/d
+reg_weight      : 100.0
+recharge_input  : 1.00e-03 m/d
+scenario        : original
+seed            : 12345
+n_piezometers   : 200
+MAE (head)      : 0.269730 m
+converged       : True
+n_iterations    : 1
+final_maxdh     : 8.010268e-10 m
+recharge_mean   : 3.976456e-04 m/d
