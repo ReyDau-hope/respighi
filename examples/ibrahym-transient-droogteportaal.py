@@ -40,21 +40,21 @@ def slice_dataset(ds):
 #
 # We load some IBRAHYM data from a number of prepared netCDF files, and slice to the given window.
 
-head = xr.open_dataset("../case/ibrahym/ibrahym-head-l1-100m.nc")["head"]
+head = xr.open_dataset("../../case/ibrahym/ibrahym-head-l1-100m.nc")["head"]
 modelhead = slice_dataset(head.isel(time=-1))
-drain_ds = slice_dataset(xr.open_dataset("../case/ibrahym/ibrahym-drains-100m.nc"))
+drain_ds = slice_dataset(xr.open_dataset("../../case/ibrahym/ibrahym-drains-100m.nc"))
 overlandflow_ds = slice_dataset(
-    xr.open_dataset("../case/ibrahym/ibrahym-overlandflow-100m.nc")
+    xr.open_dataset("../../case/ibrahym/ibrahym-overlandflow-100m.nc")
 )
-river_ds = slice_dataset(xr.open_dataset("../case/ibrahym/ibrahym-rivers-100m.nc"))
+river_ds = slice_dataset(xr.open_dataset("../../case/ibrahym/ibrahym-rivers-100m.nc"))
 large_river_ds = slice_dataset(
-    xr.open_dataset("../case/ibrahym/ibrahym-largerivers-100m.nc")
+    xr.open_dataset("../../case/ibrahym/ibrahym-largerivers-100m.nc")
 )
 tiledrain_ds = slice_dataset(
-    xr.open_dataset("../case/ibrahym/ibrahym-tiledrainage-100m.nc")
+    xr.open_dataset("../../case/ibrahym/ibrahym-tiledrainage-100m.nc")
 )
-subsoil = slice_dataset(xr.open_dataset("../case/ibrahym/ibrahym-subsoil-100m.nc"))
-hfb_gdf = gpd.read_file("../case/ibrahym/hfb-12.gpkg")
+subsoil = slice_dataset(xr.open_dataset("../../case/ibrahym/ibrahym-subsoil-100m.nc"))
+hfb_gdf = gpd.read_file("../../case/ibrahym/hfb-12.gpkg")
 
 # Select the winter data
 river_ds = river_ds.isel(time=0)

@@ -51,7 +51,7 @@ def build_experiment_inputs():
     N_PIEZOMETERS = 200
     RECHARGE = 0.001
     SCENARIO = ""
-    BASE = "../case/ibrahym/ibrahym-"        # <-- RE-POINT to your data path
+    BASE = r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\case\ibrahym\ibrahym-"  #Desktop Data Path
 
     def slice_dataset(ds):
         return ds.sel(x=slice(XMIN, XMAX), y=slice(YMAX, YMIN))
@@ -104,7 +104,7 @@ def build_experiment_inputs():
         regularization = rsp.UnscaledMinimumCurvature(float(reg_weight))
         target = rsp.CellSampling(px, py, heads, grid, sigma=sigma_int)
         inverse = rsp.InverseProblem(
-            gwf, target, regularization=regularization, maxiter=100, relax=0.0,
+            gwf, target, regularization=regularization, maxiter=100, relax=1.0,
         )
         inverse.formulate()
         inverse.nonlinear_solve()
@@ -147,7 +147,7 @@ def run_experiment():
 
         fitted = _head_2d(inverse.head)
         ds = xr.Dataset(
-            {"head": fitted},
+            {"head": fitted, "recharge": _head_2d(inverse.recharge)},
             attrs={"sweep": SWEEP, "value": float(v),
                    "kD": float(v if SWEEP == "kD" else KD_FIXED),
                    "reg_weight": float(v if SWEEP == "reg" else REG_FIXED),
@@ -165,3 +165,5 @@ def run_experiment():
 
 if __name__ == "__main__":
     run_experiment()
+
+# %%
