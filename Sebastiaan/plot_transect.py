@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path("../SavedData/transect_kD_20260825_1700")            # folder with truth.nc + head_*.nc, or its parent
+RUN_DIR = Path(r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\respighi-mastercopy\SavedData\transect_reg_20260826_2106")            # folder with truth.nc + head_*.nc, or its parent
 TRANSECT_FRAC = 0.5                        # 0.5 = mid-domain; 0..1 across the y-range
 
 _PAT = re.compile(r"head_([A-Za-z]+)(\d+)\.nc$")
@@ -51,6 +51,7 @@ def main(run_dir: Path):
     if not files:
         raise FileNotFoundError("No head_*.nc files found.")
     sweep = _PAT.search(files[0].name).group(1)      # "kD" or "reg"
+    sym = r"$\gamma$" if sweep == "reg" else sweep
 
     # sort by the numeric value
     def val(f):
@@ -58,22 +59,22 @@ def main(run_dir: Path):
     files = sorted(files, key=val)
 
     fig, ax = plt.subplots(figsize=(9, 5), constrained_layout=True)
-    ax.plot(xt, ht, color="black", lw=3, label="IBRAHYM (truth)", zorder=10)
+    ax.plot(xt, ht, color="black", lw=3, alpha=0.8, label="IBRAHYM (truth)", zorder=10)
 
     cmap = plt.cm.viridis(np.linspace(0, 0.9, len(files)))
     for f, c in zip(files, cmap):
         ds = xr.open_dataset(f)
         v = ds.attrs.get("value", val(f))
         x, h, _ = transect_line(ds["head"], TRANSECT_FRAC)
-        ax.plot(x, h, color=c, lw=1.8, label=f"{sweep} = {v:g}")
+        ax.plot(x, h, color=c, lw=1.8, label=f"{sym} = {v:g}")
 
     unit = "m$^2$/day" if sweep == "kD" else ""
     ax.set_xlabel("distance along transect (x, m)")
     ax.set_ylabel("head (m)")
-    ax.set_title(f"Fitted head along a mid-domain transect vs. {sweep}"
+    ax.set_title(f"Fitted head along a mid-domain transect vs. {sym}"
                  + (f"  [{unit}]" if unit else "")
                  + f"\n(y = {y_used:.0f} m; truth in black)")
-    ax.legend(title=sweep, fontsize=9)
+    ax.legend(title=sym, fontsize=9)
 
     out = run_dir / f"transect_{sweep}.png"
     fig.savefig(out, dpi=200, bbox_inches="tight")

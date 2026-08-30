@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path("../SavedData")     # folder with head_*.nc, or its parent
+RUN_DIR = Path(r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\respighi-mastercopy\SavedData\transect_reg_20260826_2207")     # folder with head_*.nc, or its parent
 TRANSECT_FRAC = 0.5
 
 _PAT = re.compile(r"head_([A-Za-z]+)(\d+)\.nc$")
@@ -34,6 +34,7 @@ def main(run_dir):
     if not files:
         raise FileNotFoundError("No head_*.nc files found.")
     sweep = _PAT.search(files[0].name).group(1)
+    sym = r"$\gamma$" if sweep == "reg" else sweep
     files = sorted(files, key=lambda f: int(_PAT.search(f.name).group(2)))
 
     fig, ax = plt.subplots(figsize=(9, 5), constrained_layout=True)
@@ -45,13 +46,13 @@ def main(run_dir):
             raise KeyError(f"{f.name} has no 'recharge' — re-run the runner with the recharge save added.")
         v = ds.attrs.get("value", int(_PAT.search(f.name).group(2)))
         x, r, y_used = transect_line(ds["recharge"], TRANSECT_FRAC)
-        ax.plot(x, r, color=c, lw=1.8, label=f"{sweep} = {v:g}")
+        ax.plot(x, r, color=c, lw=1.8, label=f"{sym} = {v:g}")
 
     ax.axhline(0, color="gray", lw=0.8, zorder=0)
     unit = "m$^2$/day" if sweep == "kD" else ""
     ax.set_xlabel("distance along transect (x, m)")
     ax.set_ylabel("fitted recharge (m/day)")
-    ax.set_title(f"Fitted recharge along a mid-domain transect vs. {sweep}"
+    ax.set_title(f"Fitted recharge along a mid-domain transect vs. {sym}"
                  + (f"  [{unit}]" if unit else "")
                  + f"\n(y = {y_used:.0f} m; no recharge ground truth)")
     ax.legend(title=sweep, fontsize=9)
@@ -65,3 +66,4 @@ def main(run_dir):
 if __name__ == "__main__":
     main(RUN_DIR)
     plt.show()
+# %%

@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_reg_20260826_2106")
+RUN_DIR = Path(r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\respighi-mastercopy\SavedData\transect_reg_20260826_2106")
 TRANSECT_FRAC = 0.5
 FEATURE_VALUES = [100, 4000]              # e.g. [4000, 100]; None = extremes
 
@@ -72,6 +72,7 @@ def main(run_dir):
     run_dir = resolve(run_dir)
     print(f"Reading from: {run_dir.resolve()}")
     sweep, all_vals = sweep_and_values(run_dir)
+    sym = r"$\gamma$" if sweep == "reg" else sweep
     feats = FEATURE_VALUES if FEATURE_VALUES else [all_vals[0], all_vals[-1]]
 
     truth = xr.open_dataset(run_dir / "truth.nc")["head"]
@@ -92,7 +93,7 @@ def main(run_dir):
         ax.set_xlabel("distance along transect (x, m)")
         ax.set_ylabel("head (m)", color=C_HEAD)
         ax.tick_params(axis="y", labelcolor=C_HEAD)
-        ax.set_title(f"{sweep} = {v:g}")
+        ax.set_title(f"{sym} = {v:g}")
 
         # right axis: recharge, symmetric about zero
         ax2 = ax.twinx()
