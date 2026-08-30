@@ -12,7 +12,7 @@ Works on a kD sweep or a reg sweep folder (auto-detected). Set FEATURE_VALUES to
 the cases you want (e.g. a good and a bad one); leave it None to auto-pick the
 lowest and highest swept value.
 """
-
+#%%
 import re
 from pathlib import Path
 
@@ -20,9 +20,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path("../SavedData")     # transect_* folder, or its parent
+RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_reg_20260826_2106")     # transect_* folder, or its parent
 TRANSECT_FRAC = 0.5
-FEATURE_VALUES = None              # e.g. [4000, 100] for reg, [2000, 250] for kD; None = extremes
+FEATURE_VALUES = [100, 4000]              # e.g. [4000, 100] for reg, [2000, 250] for kD; None = extremes
 
 _PAT = re.compile(r"head_([A-Za-z]+)(\d+)\.nc$")
 
@@ -107,3 +107,5 @@ def main(run_dir):
 if __name__ == "__main__":
     main(RUN_DIR)
     plt.show()
+
+# %%

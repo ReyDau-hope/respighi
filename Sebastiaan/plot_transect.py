@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path(r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\respighi-mastercopy\SavedData\transect_kD_20260826_2020")            # folder with truth.nc + head_*.nc, or its parent
+RUN_DIR = Path("../SavedData/transect_kD_20260825_1700")            # folder with truth.nc + head_*.nc, or its parent
 TRANSECT_FRAC = 0.5                        # 0.5 = mid-domain; 0..1 across the y-range
 
 _PAT = re.compile(r"head_([A-Za-z]+)(\d+)\.nc$")
@@ -85,3 +85,5 @@ def main(run_dir: Path):
 if __name__ == "__main__":
     main(RUN_DIR)
     plt.show()
+
+# %%

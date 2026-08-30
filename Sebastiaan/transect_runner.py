@@ -51,7 +51,7 @@ def build_experiment_inputs():
     N_PIEZOMETERS = 200
     RECHARGE = 0.001
     SCENARIO = ""
-    BASE = r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\case\ibrahym\ibrahym-"  #Desktop Data Path
+    BASE = "../case/ibrahym/ibrahym-"        # <-- RE-POINT to your data path
 
     def slice_dataset(ds):
         return ds.sel(x=slice(XMIN, XMAX), y=slice(YMAX, YMIN))
@@ -147,7 +147,7 @@ def run_experiment():
 
         fitted = _head_2d(inverse.head)
         ds = xr.Dataset(
-            {"head": fitted, "recharge": _head_2d(inverse.recharge)},
+            {"head": fitted},
             attrs={"sweep": SWEEP, "value": float(v),
                    "kD": float(v if SWEEP == "kD" else KD_FIXED),
                    "reg_weight": float(v if SWEEP == "reg" else REG_FIXED),
