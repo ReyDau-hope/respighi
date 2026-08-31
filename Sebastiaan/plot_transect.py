@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path(r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\respighi-mastercopy\SavedData\transect_reg_20260826_2106")            # folder with truth.nc + head_*.nc, or its parent
+RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_reg_20260831_1714")            # folder with truth.nc + head_*.nc, or its parent
 TRANSECT_FRAC = 0.5                        # 0.5 = mid-domain; 0..1 across the y-range
 
 _PAT = re.compile(r"head_([A-Za-z]+)(\d+)\.nc$")
@@ -59,10 +59,10 @@ def main(run_dir: Path):
     files = sorted(files, key=val)
 
     fig, ax = plt.subplots(figsize=(9, 5), constrained_layout=True)
-    ax.plot(xt, ht, color="black", lw=3, alpha=0.8, label="IBRAHYM (truth)", zorder=10)
+    ax.plot(xt, ht, color="black", lw=1, alpha=0.8, label="IBRAHYM (truth)", zorder=10)
 
-    cmap = plt.cm.viridis(np.linspace(0, 0.9, len(files)))
-    for f, c in zip(files, cmap):
+    colors = plt.cm.tab10(range(len(files)))
+    for f, c in zip(files, colors):
         ds = xr.open_dataset(f)
         v = ds.attrs.get("value", val(f))
         x, h, _ = transect_line(ds["head"], TRANSECT_FRAC)

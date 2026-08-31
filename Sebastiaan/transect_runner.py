@@ -25,11 +25,11 @@ import xarray as xr
 # CONFIG
 # ---------------------------------------------------------------------------
 SEED = 12345
-SWEEP = "reg"                     # "kD" or "reg"
+SWEEP = "kD"                     # "kD" or "reg"
 
-KD_FIXED = 1000.0                # used when SWEEP == "reg"
-REG_FIXED = 100.0              # used when SWEEP == "kD"
-SIGMA_INT = 0.1                  # fixed assumed noise (data is clean; sets data/reg balance)
+KD_FIXED = 2000.0                # used when SWEEP == "reg"
+REG_FIXED = 4000.0              # used when SWEEP == "kD"
+#SIGMA_INT = 0.1                  # fixed assumed noise (data is clean; sets data/reg balance)
 
 KD_VALUES = [250.0, 500.0, 1000.0, 2000.0, 4000.0]      # a handful, well-separated
 REG_VALUES = [100.0, 500.0, 1000.0, 4000.0, 8000.0]
@@ -46,12 +46,13 @@ def build_experiment_inputs():
     import xugrid as xu
     import respighi as rsp
 
-    XMIN, XMAX = 185_000.0, 205_000.0
+    XMIN, XMAX = 193_000.0, 193_500.0
     YMIN, YMAX = 350_000.0, 370_000.0
     N_PIEZOMETERS = 200
     RECHARGE = 0.001
     SCENARIO = ""
-    BASE = r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\case\ibrahym\ibrahym-"  #Desktop Data Path
+    BASE = r"C:\Users\sebas\Documents\1Thesis\case\ibrahym\ibrahym-"  #Laptop Data Path
+    #BASE = r"C:\Users\sebas\Documents\1Thesis\case\ibrahym\ibrahym-" #Desktop Data Path
 
     def slice_dataset(ds):
         return ds.sel(x=slice(XMIN, XMAX), y=slice(YMAX, YMIN))
@@ -100,9 +101,9 @@ def build_experiment_inputs():
         gwf.nonlinear_solve()
         return gwf
 
-    def run_inverse(gwf, heads, sigma_int, reg_weight):
+    def run_inverse(gwf, heads, reg_weight):
         regularization = rsp.UnscaledMinimumCurvature(float(reg_weight))
-        target = rsp.CellSampling(px, py, heads, grid, sigma=sigma_int)
+        target = rsp.CellSampling(px, py, heads, grid)
         inverse = rsp.InverseProblem(
             gwf, target, regularization=regularization, maxiter=100, relax=1.0,
         )
@@ -140,10 +141,10 @@ def run_experiment():
     for v in values:
         if SWEEP == "kD":
             gwf = make_gwf(v)
-            inverse = run_inverse(gwf, clean, SIGMA_INT, REG_FIXED)
+            inverse = run_inverse(gwf, clean, REG_FIXED)
         else:
             gwf = gwf_fixed
-            inverse = run_inverse(gwf, clean, SIGMA_INT, v)
+            inverse = run_inverse(gwf, clean, v)
 
         fitted = _head_2d(inverse.head)
         ds = xr.Dataset(
@@ -151,7 +152,7 @@ def run_experiment():
             attrs={"sweep": SWEEP, "value": float(v),
                    "kD": float(v if SWEEP == "kD" else KD_FIXED),
                    "reg_weight": float(v if SWEEP == "reg" else REG_FIXED),
-                   "sigma_int": SIGMA_INT, "seed": SEED},
+                   "seed": SEED},
         )
         ds.to_netcdf(RUN_DIR / f"head_{SWEEP}{int(round(v)):05d}.nc")
         print(f"  {SWEEP} = {v:g}  saved")

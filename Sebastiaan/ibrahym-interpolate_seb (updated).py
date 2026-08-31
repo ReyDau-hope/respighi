@@ -173,7 +173,6 @@ inverse = rsp.InverseProblem(
     target=target,
     regularization=REG_WEIGHT,
     maxiter=100,
-    relax=1.0,
 )
 
 # %%

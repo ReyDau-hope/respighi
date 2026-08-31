@@ -14,7 +14,7 @@ Two figures:
 Point RUN_DIR at the transect folder AND set BASE + the window to match the
 runner. "Active" = conductance > CONDUCTANCE_MIN.
 """
-
+#%%
 import re
 import warnings
 from pathlib import Path
@@ -24,12 +24,12 @@ import numpy as np
 import xarray as xr
 
 # --- transect data ---
-RUN_DIR = Path("../SavedData")     # transect_* folder, or its parent
+RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_kD_20260826_2051")     # transect_* folder, or its parent
 TRANSECT_FRAC = 0.5
 FEATURE_VALUES = None              # None = lowest & highest swept value
 
 # --- IBRAHYM boundary data (MUST match the runner) ---
-BASE = "../case/ibrahym/ibrahym-"  # <-- RE-POINT to your data path
+BASE = r"C:\Users\sebas\Documents\1Thesis\case\ibrahym\ibrahym-"  # <-- RE-POINT to your data path
 SCENARIO = ""
 XMIN, XMAX = 185_000.0, 205_000.0
 YMIN, YMAX = 350_000.0, 370_000.0
@@ -186,3 +186,5 @@ def main(run_dir):
 if __name__ == "__main__":
     main(RUN_DIR)
     plt.show()
+
+# %%

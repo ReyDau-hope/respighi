@@ -26,8 +26,6 @@ XMIN = 185_000.0
 XMAX = 205_000.0
 YMIN = 350_000.0
 YMAX = 370_000.0
-PIEZOMETER_SIGMA = 0.1
-BOUNDARY_SIGMA = 0.2
 
 
 def slice_dataset(ds):
@@ -130,7 +128,7 @@ y = piezometers.geometry.y.to_numpy()
 grid = xu.Ugrid2d.from_structured(modelhead)
 head = piezometers["mean_head"].to_numpy()
 sigma = np.full_like(head, PIEZOMETER_SIGMA)
-target = rsp.CellSampling(x, y, piezometers["mean_head"], grid, sigma=sigma)
+target = rsp.CellSampling(x, y, piezometers["mean_head"], grid)
 
 # %%
 # With the groundwater model and the target, we can pose an inverse problem to solve.
