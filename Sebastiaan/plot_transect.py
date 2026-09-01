@@ -16,8 +16,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_reg_20260831_1714")            # folder with truth.nc + head_*.nc, or its parent
+RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_reg_20260831_1812+DefaultkD")            # folder with truth.nc + head_*.nc, or its parent
 TRANSECT_FRAC = 0.5                        # 0.5 = mid-domain; 0..1 across the y-range
+SELECT_VALUES = None #None = all curves, else a list of the swept values to plot (e.g. [100, 4000] for reg, [250, 2000] for kD)
 
 _PAT = re.compile(r"head_([A-Za-z]+)(\d+)\.nc$")
 
@@ -57,6 +58,13 @@ def main(run_dir: Path):
     def val(f):
         return int(_PAT.search(f.name).group(2))
     files = sorted(files, key=val)
+
+    # Keep only chosen values
+    if SELECT_VALUES is not None:
+        wanted = {int(round(v)) for v in SELECT_VALUES}
+        files = [f for f in files if val(f) in wanted]
+        if not files:
+            raise ValueError(f"None of SELECT_VALUES {SELECT_VALUES} matched saved files.")
 
     fig, ax = plt.subplots(figsize=(9, 5), constrained_layout=True)
     ax.plot(xt, ht, color="black", lw=1, alpha=0.8, label="IBRAHYM (truth)", zorder=10)

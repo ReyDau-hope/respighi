@@ -21,9 +21,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path(r"C:\Users\sebas\Documents\Thesis Interpolating GW Levels\respighi-mastercopy\SavedData\transect_reg_20260826_2106")
+RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_kD_20260831_1735")
 TRANSECT_FRAC = 0.5
-FEATURE_VALUES = [100, 4000]              # e.g. [4000, 100]; None = extremes
+FEATURE_VALUES = [250, 2000]              # e.g. [4000, 100]; None = extremes
 
 _PAT = re.compile(r"head_([A-Za-z]+)(\d+)\.nc$")
 
@@ -88,7 +88,7 @@ def main(run_dir):
         _, r, _ = transect_line(ds["recharge"], TRANSECT_FRAC)
 
         # left axis: head (+ truth)
-        ax.plot(xt, ht, color="black", lw=2.5, label="truth", zorder=5)
+        ax.plot(xt, ht, color="black", lw=1, label="truth", zorder=5)
         ax.plot(x, h, color=C_HEAD, lw=1.8, label="fitted head")
         ax.set_xlabel("distance along transect (x, m)")
         ax.set_ylabel("head (m)", color=C_HEAD)

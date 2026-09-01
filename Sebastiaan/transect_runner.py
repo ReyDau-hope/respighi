@@ -25,17 +25,18 @@ import xarray as xr
 # CONFIG
 # ---------------------------------------------------------------------------
 SEED = 12345
-SWEEP = "kD"                     # "kD" or "reg"
+SWEEP = "reg"                     # "kD" or "reg" or "sigma"
 
 KD_FIXED = 2000.0                # used when SWEEP == "reg"
 REG_FIXED = 4000.0              # used when SWEEP == "kD"
 #SIGMA_INT = 0.1                  # fixed assumed noise (data is clean; sets data/reg balance)
+SIGMA_VALUES = [0.10, 0.20, 0.50]
 
 KD_VALUES = [250.0, 500.0, 1000.0, 2000.0, 4000.0]      # a handful, well-separated
 REG_VALUES = [100.0, 500.0, 1000.0, 4000.0, 8000.0]
 
 SAVE_ROOT = Path("../SavedData")
-RUN_DIR = SAVE_ROOT / f"transect_{SWEEP}_{datetime.now():%Y%m%d_%H%M}"
+RUN_DIR = SAVE_ROOT / f"transect_{SWEEP}_{datetime.now():%Y%m%d_%H%M}_RegZoomed(192to196.5)"
 
 #%%
 # ---------------------------------------------------------------------------
@@ -46,7 +47,7 @@ def build_experiment_inputs():
     import xugrid as xu
     import respighi as rsp
 
-    XMIN, XMAX = 193_000.0, 193_500.0
+    XMIN, XMAX = 192_000.0, 196_500.0
     YMIN, YMAX = 350_000.0, 370_000.0
     N_PIEZOMETERS = 200
     RECHARGE = 0.001
@@ -120,6 +121,10 @@ def build_experiment_inputs():
 def _head_2d(da):
     return da.isel(layer=0) if "layer" in da.dims else da
 
+def file_tag(sweep, v):
+    if sweep == "sigma":
+        return f"head_sigma{int(round(v * 100)):03d}.nc"   # cm: 0.1 -> sigma010
+    return f"head_{sweep}{int(round(v)):05d}.nc"
 
 def run_experiment():
     import gc
