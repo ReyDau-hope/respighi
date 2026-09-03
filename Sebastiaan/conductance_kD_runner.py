@@ -10,7 +10,7 @@ empirically).
 Noise-free (one clean solve per kD), gamma fixed, relax=1.0. Saves the curves to
 one netCDF; companion plotter: plot_conductance_kD.py. RE-POINT `BASE`.
 """
-
+#%%
 from __future__ import annotations
 
 import gc
@@ -35,7 +35,7 @@ KD_VALUES = np.logspace(np.log10(1000), np.log10(10000), 40)
 
 XMIN, XMAX = 185_000.0, 205_000.0
 YMIN, YMAX = 350_000.0, 370_000.0
-BASE = "../case/ibrahym/ibrahym-"     # <-- RE-POINT to your data path
+BASE = r"C:\Users\sebas\Documents\1Thesis\case\ibrahym\ibrahym-"     # <-- RE-POINT to your data path
 
 VARIANTS = {                       # label -> conductance-file suffix
     "Original":  "",

@@ -2,3 +2,4 @@ scenario=original, SEED=12345, REG_WEIGHT=100, TRANSMISSIVITY=2200.0, recharge_m
 scenario=original, SEED=12345, REG_WEIGHT=1000, TRANSMISSIVITY=2200.0, recharge_mean=8.001782e-04, recharge_median=3.787992e-04
 scenario=original, SEED=12345, REG_WEIGHT=1000, TRANSMISSIVITY=2200.0, recharge_mean=8.001782e-04, recharge_median=3.787992e-04
 scenario=original, SEED=12345, REG_WEIGHT=10000, TRANSMISSIVITY=2200.0, recharge_mean=6.670519e-04, recharge_median=3.395276e-04
+scenario=original, SEED=12345, REG_WEIGHT=UnscaledMinimumCurvature(weight=100.0), TRANSMISSIVITY=2000.0, recharge_mean=3.978672e-04, recharge_median=4.162767e-04

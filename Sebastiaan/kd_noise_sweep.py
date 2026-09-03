@@ -120,7 +120,7 @@ def build_experiment_inputs():
         regularization = rsp.UnscaledMinimumCurvature(REG_WEIGHT)
         target = rsp.CellSampling(px, py, noisy_piezo_head, grid, sigma=sigma_int)
         inverse = rsp.InverseProblem(
-            gwf, target, regularization=regularization, maxiter=100, relax=0.0,
+            gwf, target, regularization=regularization, maxiter=100, relax=1.0,
         )
         inverse.formulate()
         inverse.nonlinear_solve()

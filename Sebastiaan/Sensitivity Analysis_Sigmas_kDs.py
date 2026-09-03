@@ -37,7 +37,7 @@ def slice_dataset(ds):
 
 SCENARIO = ""   # "" for original, "-cond0.5", "-cond2", "-cond3"
 
-BASE = "../../case/ibrahym/ibrahym-"
+BASE = r"C:\Users\sebas\Documents\1Thesis\case\ibrahym\ibrahym-"
 
 head = xr.open_dataset(f"{BASE}head-l1-100m.nc")["head"]
 modelhead = slice_dataset(head.isel(time=-1))
@@ -181,7 +181,7 @@ for s_cm, s in zip(sigma_cm, sigma_m):
             noisy = clean_heads + rng_noise.normal(0.0, s, size=clean_heads.shape)
             target = rsp.CellSampling(x, y, noisy, grid)
             inv = rsp.InverseProblem(groundwatermodel=gwf, target=target,
-                                     regularization_weight=REG_WEIGHT, maxiter=100, relax=0.0)
+                                     regularization=REG_WEIGHT, maxiter=100, relax=1.0)
             inv.formulate()
             inv.nonlinear_solve()
             err = inv.head.isel(layer=0) - modelhead
