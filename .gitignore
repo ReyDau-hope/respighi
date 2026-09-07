@@ -12,9 +12,13 @@ docs/api
 docs/sg_execution_times.rst
 
 case/*
+<<<<<<< HEAD
 
 *.png
 !Sebastiaan/*.png
 !Findings/*.png
 !Sebastiaan/**/*.png
 !Findings/**/*.png
+=======
+tmp-scripts/*
+>>>>>>> 8c0d1d08eafe23bc65906f9979f2fe7c892703e0

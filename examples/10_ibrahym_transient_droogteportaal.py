@@ -27,7 +27,6 @@ XMAX = 205_000.0
 YMIN = 350_000.0
 YMAX = 370_000.0
 PIEZOMETER_SIGMA = 0.1
-BOUNDARY_SIGMA = 0.2
 
 
 def slice_dataset(ds):
@@ -75,22 +74,13 @@ WIDTH = 0.01
 
 transmissivity = xr.full_like(subsoil["kh"].isel(layer=0, drop=True), 3000.0)
 
-river = rsp.River.from_dataset(
-    river_ds, constant_sigma=BOUNDARY_SIGMA, smoothing_width=WIDTH
-)
-large_river = rsp.River.from_dataset(
-    large_river_ds, constant_sigma=BOUNDARY_SIGMA, smoothing_width=WIDTH
-)
-drain = rsp.Drainage.from_dataset(
-    drain_ds, constant_sigma=BOUNDARY_SIGMA, smoothing_width=WIDTH
-)
-tiledrain = rsp.Drainage.from_dataset(
-    tiledrain_ds, constant_sigma=BOUNDARY_SIGMA, smoothing_width=WIDTH
-)
+river = rsp.River.from_dataset(river_ds, smoothing_width=WIDTH)
+large_river = rsp.River.from_dataset(large_river_ds, smoothing_width=WIDTH)
+drain = rsp.Drainage.from_dataset(drain_ds, smoothing_width=WIDTH)
+tiledrain = rsp.Drainage.from_dataset(tiledrain_ds, smoothing_width=WIDTH)
 overlandflow = rsp.Drainage.from_dataset(
     overlandflow_ds,
     constant_conductance=500.0,
-    constant_sigma=BOUNDARY_SIGMA,
     smoothing_width=WIDTH,
 )
 recharge = rsp.Recharge(
@@ -112,8 +102,6 @@ gwf = rsp.GroundwaterModel(
     transmissivity=transmissivity,
     storativity=np.full_like(transmissivity, 0.15),
     horizontal_flow_barriers=[hfb],
-    xclose=1e-5,
-    maxiter=50,
 )
 gwf.formulate()
 gwf.nonlinear_solve()
@@ -127,22 +115,20 @@ gwf.head.isel(layer=0).plot.contour(levels=30)
 
 head = xr.open_dataarray("../tmp-scripts/transient-observations.nc")
 grid = xu.Ugrid2d.from_structured(modelhead)
-sigma = np.full(head.shape[1], PIEZOMETER_SIGMA)
 target = rsp.CellSampling(
     x=head["x"],
     y=head["y"],
     head=head,
     grid=grid,
-    sigma=sigma,
+    sigma=PIEZOMETER_SIGMA,
 )
 # %%
 
 inverse = rsp.InverseProblem(
     groundwatermodel=gwf,
     target=target,
-    regularization=rsp.UnscaledMinimumCurvature(100.0),
-    maxiter=10,
-    maxdh=0.001,
+    regularization=rsp.UnscaledMinimumCurvature(10.0),
+    nonlinear_settings=rsp.NonlinearSettings(relaxation=rsp.ScalarRelaxation(0.5)),
 )
 time = pd.date_range("2025-10-01", "2026-04-01")
 steady = np.full(time.size - 1, False)

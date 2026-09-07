@@ -110,8 +110,6 @@ gwf = rsp.GroundwaterModel(
     head_boundaries=[river, large_river, drain, tiledrain, overlandflow],
     transmissivity=transmissivity,
     horizontal_flow_barriers=[hfb],
-    xclose=1e-6,
-    maxiter=50,
 )
 gwf.formulate()
 gwf.nonlinear_solve()
@@ -172,7 +170,6 @@ inverse = rsp.InverseProblem(
     groundwatermodel=gwf,
     target=target,
     regularization=REG_WEIGHT,
-    maxiter=100,
 )
 
 # %%
