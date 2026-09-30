@@ -8,7 +8,7 @@ line (simple, slightly blocky). x-axis is distance ALONG the diagonal (m).
 Loads truth + per-value head fields, plots truth (black) + one curve per swept
 value. Auto-detects kD / reg / sigma from filenames. Pure read.
 """
-
+#%%
 import re
 from pathlib import Path
 
@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
-RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_kD_XXXX")  # <- set
+RUN_DIR = Path(r"C:\Users\sebas\Documents\1Thesis\respighi\SavedData\transect_reg_20260831_1737")  # <- set
 SELECT_VALUES = None               # None = all curves; else e.g. [250, 1000, 4000]
 
 _PAT = re.compile(r"head_([A-Za-z]+)(\d+)\.nc$")
@@ -44,7 +44,7 @@ def n_samples(da2d):
 
 
 def diagonal_line(da2d, n):
-    """Nearest-cell sampling along BL->TR diagonal. Returns (distance, values)."""
+    """Nearest-cell sampling along diagonal. Returns (distance, values)."""
     x = da2d["x"].values
     y = da2d["y"].values
     x0, x1 = float(x.min()), float(x.max())     # bottom-left -> top-right
@@ -99,14 +99,14 @@ def main(run_dir: Path):
     unit = "m$^2$/day" if sweep == "kD" else ""
     ax.set_xlabel("distance along diagonal transect (m)")
     ax.set_ylabel("head (m)")
-    ax.set_title(f"Fitted head along a diagonal transect (BL$\\rightarrow$TR) vs. {sym}"
+    ax.set_title(f"Fitted head vs. {sym}"
                  + (f"  [{unit}]" if unit else "")
                  + "\n(truth in black)")
     ax.legend(title=sym, fontsize=9)
 
-    out = run_dir / f"transect_diagonal_{sweep}.png"
+    out = run_dir / f"transect_diagonal_{sweep}_nearest.png"
     fig.savefig(out, dpi=200, bbox_inches="tight")
-    fig.savefig(run_dir / f"transect_diagonal_{sweep}.pdf", bbox_inches="tight")
+    fig.savefig(run_dir / f"transect_diagonal_{sweep}_nearest.pdf", bbox_inches="tight")
     print(f"Saved {out}")
     return fig
 

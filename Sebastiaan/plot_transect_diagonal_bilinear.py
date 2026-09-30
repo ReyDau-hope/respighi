@@ -99,14 +99,14 @@ def main(run_dir: Path):
     unit = "m$^2$/day" if sweep == "kD" else ""
     ax.set_xlabel("distance along diagonal transect (m)")
     ax.set_ylabel("head (m)")
-    ax.set_title(f"Fitted head along a diagonal transect (BL$\\rightarrow$TR) vs. {sym}"
+    ax.set_title(f"Fitted head vs. {sym}"
                  + (f"  [{unit}]" if unit else "")
                  + "\n(truth in black)")
     ax.legend(title=sym, fontsize=9)
 
-    out = run_dir / f"transect_diagonal_{sweep}.png"
+    out = run_dir / f"transect_diagonal_{sweep}_bilinear.png"
     fig.savefig(out, dpi=200, bbox_inches="tight")
-    fig.savefig(run_dir / f"transect_diagonal_{sweep}.pdf", bbox_inches="tight")
+    fig.savefig(run_dir / f"transect_diagonal_{sweep}_bilinear.pdf", bbox_inches="tight")
     print(f"Saved {out}")
     return fig
 
